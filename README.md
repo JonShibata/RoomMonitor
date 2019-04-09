@@ -1,2 +1,1 @@
-# HomeMonitorArduino
-Home Monitor Arduino
+Home Automation Arduino
