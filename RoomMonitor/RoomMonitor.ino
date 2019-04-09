@@ -175,7 +175,7 @@ void loop()
   {
 
     Serial.println("");
-    Serial.println("Calculate Data 0-2");
+    Serial.println("Calculate Data 0-6");
 
     Read_DHT();
     ReadLights();
@@ -199,12 +199,8 @@ void loop()
     UpdateHomeCenter();
 
     PostToThingspeakFunc();
-
-    bool bTemp;
-    bTemp = WiFi.disconnect();
-
     Serial.println("");
-    Serial.println("WiFi.disconnect = " + String((int)bTemp));
+    Serial.println("WiFi.disconnect = " + String((int)WiFi.disconnect()));
   }
 }
 
