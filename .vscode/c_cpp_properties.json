@@ -1,0 +1,15 @@
+{
+  "configurations": [
+    {
+      "name": "Win32",
+      "includePath": [
+        "C:/Users/szjgcm/AppData/Local/Arduino15/packages/esp8266/tools/**",
+        "C:/Users/szjgcm/AppData/Local/Arduino15/packages/esp8266/hardware/esp8266/2.4.1/**",
+        "C:/Users/szjgcm/Documents/Arduino/libraries/**"
+      ],
+      "forcedInclude": [],
+      "intelliSenseMode": "msvc-x64"
+    }
+  ],
+  "version": 4
+}
