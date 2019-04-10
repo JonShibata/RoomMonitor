@@ -53,24 +53,33 @@ const int CntWifiRetryAbort = 240; // = 240;   // (seconds) 4 min * 60 sec/min
 const int CntDoorBeepThresh = 10;  // (seconds)
 const int CntMotionThresh = 5;     // Motion events to trigger fast posts
 const int CntLightOnThresh = 40;   // Light threshold to determine light is on
-                                   // Check this value against thingspeak cals
+
+const float PctMotionThresh = 4.0F; // Pct of time motion detected below which room is empty
 
 bool bBeep;
+bool bDaylight;
 bool bDoorOpen;
 bool bDoorOpenLatch;
 bool bDoorOpenLatchPrev;
+
 int CntDoorOpen;
 int CntDoorOpenBeep;
 int CntLoops;
 int CntMotionEvents;
+int CntLightIntensity1;
+int CntLightIntensity2;
+int intThingSpeakCode;
+int tSunOfst;
 
 int CntLoopPost = CntLoopSlow;
 
 float T_DHT;
 float PctHumidity;
+float PctMotion;
+float tSunRise;
+float tSunSet;
 
-int CntLightIntensity1;
-int CntLightIntensity2;
+String tPostStr;
 
 float Data[8];
 
@@ -133,7 +142,7 @@ void timerCallback(void *pArg)
       digitalWrite(iPinBeep, bBeep);
     }
   }
-  else 
+  else
   {
     digitalWrite(iPinLED_Door, bLightOff);
     bBeep = false;
@@ -177,12 +186,14 @@ void loop()
     Serial.println("");
     Serial.println("Calculate Data 0-6");
 
+    PctMotion = ((float)CntMotionEvents / (float)CntLoops) * 100.0F;
+
     Read_DHT();
     ReadLights();
 
     Data[0] = (float)bDoorOpen;
     Data[1] = (((float)CntDoorOpen / (float)CntLoops) * 100.0F);
-    Data[2] = (((float)CntMotionEvents / (float)CntLoops) * 100.0F);
+    Data[2] = (PctMotion);
     Data[3] = (float)T_DHT;
     Data[4] = (float)PctHumidity;
     Data[5] = (float)CntLightIntensity1;
@@ -196,9 +207,10 @@ void loop()
     CntLoopPost = CntLoopSlow;
     CntMotionEvents = 0;
 
+    PostToThingspeakFunc();
+
     UpdateHomeCenter();
 
-    PostToThingspeakFunc();
     Serial.println("");
     Serial.println("WiFi.disconnect = " + String((int)WiFi.disconnect()));
   }
@@ -320,6 +332,8 @@ void UpdateHomeCenter()
 {
   String strLightOn;
   String strDoorOpen;
+  String strDaylight;
+  String strMotion;
 
   const int httpPort = 80;
   if (!client.connect(host, httpPort))
@@ -327,8 +341,6 @@ void UpdateHomeCenter()
     Serial.println("connection failed");
     return;
   }
-
-  String url = "";
 
   if (CntLightIntensity1 > CntLightOnThresh ||
       CntLightIntensity2 > CntLightOnThresh)
@@ -349,6 +361,24 @@ void UpdateHomeCenter()
     strDoorOpen = "/b" + strRoom + "DoorOpen=0";
   }
 
+  if (bDaylight)
+  {
+    strDaylight = "/b" + strRoom + "Daylight=1";
+  }
+  else
+  {
+    strDaylight = "/b" + strRoom + "Daylight=0";
+  }
+
+  if (PctMotion > PctMotionThresh)
+  {
+    strMotion = "/b" + strRoom + "Motion=1";
+  }
+  else
+  {
+    strMotion = "/b" + strRoom + "Motion=0";
+  }
+
   // Send request to the home center
   client.print(String("GET ") + strLightOn + strDoorOpen +
                " HTTP/1.1\r\n" +
@@ -363,7 +393,6 @@ void UpdateHomeCenter()
 void PostToThingspeakFunc()
 {
 
-  int intThingSpeakCode;
   int CntThingSpeakRetries = 0;
 
   Serial.println("");
@@ -382,6 +411,12 @@ void PostToThingspeakFunc()
   {
     ThingSpeak.setField(8, (float)intThingSpeakCode);
     intThingSpeakCode = ThingSpeak.writeFields(DataChannel, DataWriteKey);
+    tPostStr = ThingSpeak.readCreatedAt(DataChannel, DataWriteKey);
+
+    tSunRise = ThingSpeak.readFloatField(SunChannel, 1, SunReadKey);
+    tSunSet = ThingSpeak.readFloatField(SunChannel, 2, SunReadKey);
+    tSunOfst = ThingSpeak.readIntField(SunChannel, 3, SunReadKey);
+
     Serial.println("WriteFields = " + String(intThingSpeakCode));
 
     CntThingSpeakRetries++;
@@ -389,6 +424,43 @@ void PostToThingspeakFunc()
     {
       delay(15000);
     }
+  }
+
+  if (intThingSpeakCode == 200 &&
+      !isnan(tSunRise) &&
+      !isnan(tSunSet) &&
+      !isnan((float)tSunOfst))
+  {
+
+    float Hours;
+    float Minutes;
+    float tHoursToEvent;
+    float tPostFloat;
+
+    String strHoursTemp;
+    String strMinutesTemp;
+
+    strHoursTemp = tPostStr.substring(11, 13);
+    strMinutesTemp = tPostStr.substring(14, 16);
+
+    Hours = strHoursTemp.toFloat();
+    Minutes = strMinutesTemp.toFloat();
+
+    Serial.println("HoursRaw =   " + strHoursTemp);
+    Serial.println("MinutesRaw = " + strMinutesTemp);
+
+    Hours += tSunOfst;
+
+    if (Hours < 0)
+      Hours += 24.0F;
+
+    Serial.println("Hours   = " + String(Hours));
+    Serial.println("Minutes = " + String(Minutes));
+
+    tPostFloat = (Hours + (Minutes / 60.0F));
+    Serial.println("tPostFloat = " + String(tPostFloat));
+
+    bDaylight = (tSunRise < tPostFloat && tPostFloat < tSunSet);
   }
 
   Serial.println("");
