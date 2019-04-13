@@ -56,30 +56,30 @@ const int CntLightOnThresh = 40;   // Light threshold to determine light is on
 
 const float PctMotionThresh = 4.0F; // Pct of time motion detected below which room is empty
 
-bool bBeep;
-bool bDaylight;
-bool bDoorOpen;
-bool bDoorOpenLatch;
-bool bDoorOpenLatchPrev;
+bool bBeep = false;
+bool bDaylight = false;
+bool bDoorOpen = false;
+bool bDoorOpenLatch = false;
+bool bDoorOpenLatchPrev = false;
 
-int CntDoorOpen;
-int CntDoorOpenBeep;
-int CntLoops;
-int CntMotionEvents;
-int CntLightIntensity1;
-int CntLightIntensity2;
-int intThingSpeakCode;
-int tSunOfst;
+int CntDoorOpen = 0;
+int CntDoorOpenBeep = 0;
+int CntLoops = 0;
+int CntMotionEvents = 0;
+int CntLightIntensity1 = 0;
+int CntLightIntensity2 = 0;
+int intThingSpeakCode = 0;
+int tSunOfst = 0;
 
 int CntLoopPost = CntLoopSlow;
 
-float T_DHT;
-float PctHumidity;
-float PctMotion;
-float tSunRise;
-float tSunSet;
+float T_DHT = 0.0F;
+float PctHumidity = 0.0F;
+float PctMotion = 0.0F;
+float tSunRise = 0.0F;
+float tSunSet = 0.0F;
 
-String tPostStr;
+String tPostStr = "";
 
 float Data[8];
 
@@ -241,7 +241,9 @@ void Read_DHT()
   }
 
   if (isnan(T_DHT) || T_DHT < -90.0F)
+  {
     T_DHT = 0.0F;
+  }
 
   Serial.println(" T_DHT       = " + String(T_DHT));
 
@@ -256,7 +258,9 @@ void Read_DHT()
   }
 
   if (isnan(PctHumidity) || PctHumidity < -90.0F)
+  {
     PctHumidity = 0.0F;
+  }
 
   Serial.println(" PctHumidity = " + String(PctHumidity));
 }
@@ -391,7 +395,9 @@ void PostToThingspeakFunc()
     Hours += tSunOfst;
 
     if (Hours < 0)
+    {
       Hours += 24.0F;
+    }
 
     Serial.println("Hours   = " + String(Hours));
     Serial.println("Minutes = " + String(Minutes));
@@ -461,16 +467,22 @@ void UpdateHomeCenter()
     strMotion = "/b" + strRoom + "Motion=0";
   }
 
+  Serial.println(strLightOn);
+  Serial.println(strDoorOpen);
+  Serial.println(strDaylight);
+  Serial.println(strMotion);
+
   // Send request to the home center
-  client.print(String("GET ") + strLightOn + strDoorOpen +
+  client.print(String("GET ") +
+               strLightOn + strDoorOpen + strDaylight + strMotion +
                " HTTP/1.1\r\n" +
                "Host: " + host + "\r\n" +
                "Connection: close\r\n\r\n");
 
   // Read all the lines of the reply from server and print them to Serial
-  while (client.available())
-  {
-    String line = client.readStringUntil('\r');
-    Serial.print(line);
-  }
+  // while (client.available())
+  // {
+  //   String line = client.readStringUntil('\r');
+  //   Serial.print(line);
+  // }
 }
