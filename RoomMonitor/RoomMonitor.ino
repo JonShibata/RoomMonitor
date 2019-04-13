@@ -207,12 +207,17 @@ void loop()
     CntLoopPost = CntLoopSlow;
     CntMotionEvents = 0;
 
-    PostToThingspeakFunc();
+    ConnectToWiFi();
 
-    UpdateHomeCenter();
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      PostToThingspeakFunc();
 
-    Serial.println("");
-    Serial.println("WiFi.disconnect = " + String((int)WiFi.disconnect()));
+      UpdateHomeCenter();
+
+      Serial.println("");
+      Serial.println("WiFi.disconnect = " + String((int)WiFi.disconnect()));
+    }
   }
 }
 
@@ -225,8 +230,8 @@ void Read_DHT()
   int CntTempReads = 0;
   int CntHumidityReads = 0;
 
-  T_DHT = 0.0F;
-  while ((isnan(T_DHT) || T_DHT == 0.0F) &&
+  T_DHT = -99.0F;
+  while ((isnan(T_DHT) || T_DHT < -90.0F) &&
          (CntTempReads < 5))
   {
     // Read temperature as Fahrenheit (isFahrenheit = true)
@@ -235,15 +240,13 @@ void Read_DHT()
     CntTempReads++;
   }
 
-  if (isnan(T_DHT))
-  {
+  if (isnan(T_DHT) || T_DHT < -90.0F)
     T_DHT = 0.0F;
-  }
 
   Serial.println(" T_DHT       = " + String(T_DHT));
 
-  PctHumidity = 0.0F;
-  while ((isnan(PctHumidity) || PctHumidity == 0.0F) &&
+  PctHumidity = -99.0F;
+  while ((isnan(PctHumidity) || PctHumidity < -90.0F) &&
          (CntHumidityReads < 5))
   {
     // Reading temperature or humidity takes about 250 ms
@@ -252,10 +255,8 @@ void Read_DHT()
     CntHumidityReads++;
   }
 
-  if (isnan(PctHumidity))
-  {
+  if (isnan(PctHumidity) || PctHumidity < -90.0F)
     PctHumidity = 0.0F;
-  }
 
   Serial.println(" PctHumidity = " + String(PctHumidity));
 }
@@ -322,68 +323,6 @@ void ConnectToWiFi()
     Serial.println("");
     Serial.println("WiFi Connected");
   }
-}
-
-//
-//
-// Update the home center with the collected data
-
-void UpdateHomeCenter()
-{
-  String strLightOn;
-  String strDoorOpen;
-  String strDaylight;
-  String strMotion;
-
-  const int httpPort = 80;
-  if (!client.connect(host, httpPort))
-  {
-    Serial.println("connection failed");
-    return;
-  }
-
-  if (CntLightIntensity1 > CntLightOnThresh ||
-      CntLightIntensity2 > CntLightOnThresh)
-  {
-    strLightOn = "/b" + strRoom + "LightOn=1";
-  }
-  else
-  {
-    strLightOn = "/b" + strRoom + "LightOn=0";
-  }
-
-  if (bDoorOpen)
-  {
-    strDoorOpen = "/b" + strRoom + "DoorOpen=1";
-  }
-  else
-  {
-    strDoorOpen = "/b" + strRoom + "DoorOpen=0";
-  }
-
-  if (bDaylight)
-  {
-    strDaylight = "/b" + strRoom + "Daylight=1";
-  }
-  else
-  {
-    strDaylight = "/b" + strRoom + "Daylight=0";
-  }
-
-  if (PctMotion > PctMotionThresh)
-  {
-    strMotion = "/b" + strRoom + "Motion=1";
-  }
-  else
-  {
-    strMotion = "/b" + strRoom + "Motion=0";
-  }
-
-  // Send request to the home center
-  client.print(String("GET ") + strLightOn + strDoorOpen +
-               " HTTP/1.1\r\n" +
-               "Host: " + host + "\r\n" +
-               "Connection: close\r\n\r\n");
 }
 
 //
@@ -465,4 +404,73 @@ void PostToThingspeakFunc()
 
   Serial.println("");
   Serial.println("Post to Thingspeak End");
+}
+
+//
+//
+// Update the home center with the collected data
+
+void UpdateHomeCenter()
+{
+  String strLightOn;
+  String strDoorOpen;
+  String strDaylight;
+  String strMotion;
+
+  const int httpPort = 80;
+  if (!client.connect(host, httpPort))
+  {
+    Serial.println("connection failed");
+    return;
+  }
+
+  if (CntLightIntensity1 > CntLightOnThresh ||
+      CntLightIntensity2 > CntLightOnThresh)
+  {
+    strLightOn = "/b" + strRoom + "LightOn=1";
+  }
+  else
+  {
+    strLightOn = "/b" + strRoom + "LightOn=0";
+  }
+
+  if (bDoorOpen)
+  {
+    strDoorOpen = "/b" + strRoom + "DoorOpen=1";
+  }
+  else
+  {
+    strDoorOpen = "/b" + strRoom + "DoorOpen=0";
+  }
+
+  if (bDaylight)
+  {
+    strDaylight = "/b" + strRoom + "Daylight=1";
+  }
+  else
+  {
+    strDaylight = "/b" + strRoom + "Daylight=0";
+  }
+
+  if (PctMotion > PctMotionThresh)
+  {
+    strMotion = "/b" + strRoom + "Motion=1";
+  }
+  else
+  {
+    strMotion = "/b" + strRoom + "Motion=0";
+  }
+
+  // Send request to the home center
+  client.print(String("GET ") + strLightOn + strDoorOpen +
+               " HTTP/1.1\r\n" +
+               "Host: " + host + "\r\n" +
+               "Connection: close\r\n\r\n");
+
+  // Read all the lines of the reply from server and print them to Serial
+  while (client.available())
+  {
+    String line = client.readStringUntil('\r');
+    Serial.print(line);
+  }
 }
