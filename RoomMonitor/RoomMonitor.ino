@@ -404,8 +404,12 @@ void PostToThingspeakFunc()
 
     tPostFloat = (Hours + (Minutes / 60.0F));
     Serial.println("tPostFloat = " + String(tPostFloat));
+    Serial.println("tSunrise   = " + String(tSunRise));
+    Serial.println("tSunset    = " + String(tSunSet));
 
     bDaylight = (tSunRise < tPostFloat && tPostFloat < tSunSet);
+    Serial.println("bDaylight  = " + String(bDaylight));
+
   }
 
   Serial.println("");
