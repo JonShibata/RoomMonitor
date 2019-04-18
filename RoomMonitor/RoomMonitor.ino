@@ -61,6 +61,7 @@ bool bDaylight = false;
 bool bDoorOpen = false;
 bool bDoorOpenLatch = false;
 bool bDoorOpenLatchPrev = false;
+bool bFirstPostComplete = false;
 
 int CntDoorOpen = 0;
 int CntDoorOpenBeep = 0;
@@ -84,8 +85,6 @@ String tPostStr = "";
 float Data[8];
 
 os_timer_t myTimer;
-
-WiFiClient client;
 
 //
 //
@@ -180,7 +179,7 @@ void loop()
     CntLoopPost = CntLoopFast;
   }
 
-  if (CntLoops >= CntLoopPost && CntLoops > 0)
+  if (((CntLoops >= CntLoopPost) || (!bFirstPostComplete)) && CntLoops > 10)
   {
 
     Serial.println("");
@@ -192,7 +191,7 @@ void loop()
     ReadLights();
 
     Data[0] = (float)bDoorOpen;
-    Data[1] = (((float)CntDoorOpen / (float)CntLoops) * 100.0F);
+    Data[1] = ((float)CntDoorOpen / (float)CntLoops) * 100.0F;
     Data[2] = (PctMotion);
     Data[3] = (float)T_DHT;
     Data[4] = (float)PctHumidity;
@@ -201,6 +200,7 @@ void loop()
 
     bDoorOpenLatchPrev = bDoorOpenLatch;
     bDoorOpenLatch = false;
+    bFirstPostComplete = true;
 
     CntDoorOpen = 0;
     CntLoops = 0;
@@ -341,6 +341,7 @@ void PostToThingspeakFunc()
   Serial.println("");
   Serial.println("Begin Post");
 
+  WiFiClient client;
   ThingSpeak.begin(client);
 
   for (int iData = 0; iData < 8; iData++)
@@ -409,7 +410,6 @@ void PostToThingspeakFunc()
 
     bDaylight = (tSunRise < tPostFloat && tPostFloat < tSunSet);
     Serial.println("bDaylight  = " + String(bDaylight));
-
   }
 
   Serial.println("");
@@ -428,10 +428,22 @@ void UpdateHomeCenter()
   String strMotion;
 
   const int httpPort = 80;
+
+  WiFiClient client;
+
   if (!client.connect(host, httpPort))
   {
     Serial.println("connection failed");
     return;
+  }
+  
+  if (bDoorOpen)
+  {
+    strDoorOpen = "/b" + strRoom + "DoorOpen=1";
+  }
+  else
+  {
+    strDoorOpen = "/b" + strRoom + "DoorOpen=0";
   }
 
   if (CntLightIntensity1 > CntLightOnThresh ||
@@ -444,24 +456,6 @@ void UpdateHomeCenter()
     strLightOn = "/b" + strRoom + "LightOn=0";
   }
 
-  if (bDoorOpen)
-  {
-    strDoorOpen = "/b" + strRoom + "DoorOpen=1";
-  }
-  else
-  {
-    strDoorOpen = "/b" + strRoom + "DoorOpen=0";
-  }
-
-  if (bDaylight)
-  {
-    strDaylight = "/b" + strRoom + "Daylight=1";
-  }
-  else
-  {
-    strDaylight = "/b" + strRoom + "Daylight=0";
-  }
-
   if (PctMotion > PctMotionThresh)
   {
     strMotion = "/b" + strRoom + "Motion=1";
@@ -471,22 +465,29 @@ void UpdateHomeCenter()
     strMotion = "/b" + strRoom + "Motion=0";
   }
 
-  Serial.println(strLightOn);
-  Serial.println(strDoorOpen);
-  Serial.println(strDaylight);
-  Serial.println(strMotion);
+  if (bDaylight)
+  {
+    strDaylight = "/bDaylight=1";
+  }
+  else
+  {
+    strDaylight = "/bDaylight=0";
+  }
 
   // Send request to the home center
-  client.print(String("GET ") +
-               strLightOn + strDoorOpen + strDaylight + strMotion +
-               " HTTP/1.1\r\n" +
-               "Host: " + host + "\r\n" +
-               "Connection: close\r\n\r\n");
+  String strUrl = "GET " +
+                  strLightOn + strDoorOpen + strDaylight + strMotion +
+                  " HTTP/1.1\r\n" +
+                  "Host: " + host + "\r\n" +
+                  "Connection: close\r\n\r\n";
+
+  Serial.println(strUrl);
+  client.print(strUrl);
 
   // Read all the lines of the reply from server and print them to Serial
-  // while (client.available())
-  // {
-  //   String line = client.readStringUntil('\r');
-  //   Serial.print(line);
-  // }
+  while (client.available())
+  {
+    String line = client.readStringUntil('\r');
+    Serial.print(line);
+  }
 }
