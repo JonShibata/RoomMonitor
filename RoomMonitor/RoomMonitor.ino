@@ -1,5 +1,4 @@
 
-
 #include "DHT.h"
 #include <ESP8266WiFi.h>
 #include "ThingSpeak.h"
@@ -53,8 +52,9 @@ const int CntWifiRetryAbort = 240; // = 240;   // (seconds) 4 min * 60 sec/min
 const int CntDoorBeepThresh = 10;  // (seconds)
 const int CntMotionThresh = 5;     // Motion events to trigger fast posts
 const int CntLightOnThresh = 40;   // Light threshold to determine light is on
+const int CntUpdateFailThresh = 5; // Update fail threshold to try a reset
 
-const float PctMotionThresh = 4.0F; // Pct of time motion detected below which room is empty
+const float PctMotionThresh = 2.0F; // Pct of time motion detected below which room is empty
 
 bool bBeep = false;
 bool bDaylight = false;
@@ -69,22 +69,30 @@ int CntLoops = 0;
 int CntMotionEvents = 0;
 int CntLightIntensity1 = 0;
 int CntLightIntensity2 = 0;
+int CntUpdateFails = 0;
 int intThingSpeakCode = 0;
 int tSunOfst = 0;
 
 int CntLoopPost = CntLoopSlow;
 
-float T_DHT = 0.0F;
 float PctHumidity = 0.0F;
 float PctMotion = 0.0F;
 float tSunRise = 0.0F;
 float tSunSet = 0.0F;
+float T_DHT = 0.0F;
 
+String strHours = "";
+String strMinutes = "";
 String tPostStr = "";
 
 float Data[8];
 
 os_timer_t myTimer;
+
+//
+//
+//declare reset function at address 0
+void (*resetFunc)(void) = 0;
 
 //
 //
@@ -174,7 +182,18 @@ void timerCallback(void *pArg)
 void loop()
 {
 
-  if (CntMotionEvents > CntMotionThresh || bDoorOpenLatch || bDoorOpenLatchPrev)
+  if (CntLoops > 10)
+  {
+    PctMotion = ((float)CntMotionEvents / (float)CntLoops) * 100.0F;
+  }
+  else
+  {
+    PctMotion = 0;
+  }
+
+  if (PctMotion > PctMotionThresh || bDoorOpenLatch || bDoorOpenLatchPrev ||
+      ((!bDaylight) &&
+       (CntLightIntensity1 > CntLightOnThresh || CntLightIntensity2 > CntLightOnThresh)))
   {
     CntLoopPost = CntLoopFast;
   }
@@ -184,8 +203,6 @@ void loop()
 
     Serial.println("");
     Serial.println("Calculate Data 0-6");
-
-    PctMotion = ((float)CntMotionEvents / (float)CntLoops) * 100.0F;
 
     Read_DHT();
     ReadLights();
@@ -217,6 +234,15 @@ void loop()
 
       Serial.println("");
       Serial.println("WiFi.disconnect = " + String((int)WiFi.disconnect()));
+    }
+    if (intThingSpeakCode != 200)
+    {
+      CntUpdateFails++;
+      if (CntUpdateFails > CntUpdateFailThresh)
+      {
+        // Reset the board if too many attempts to connect to web fail
+        resetFunc();
+      }
     }
   }
 }
@@ -375,32 +401,36 @@ void PostToThingspeakFunc()
       !isnan(tSunSet) &&
       !isnan((float)tSunOfst))
   {
-
     float Hours;
     float Minutes;
-    float tHoursToEvent;
     float tPostFloat;
 
-    String strHoursTemp;
-    String strMinutesTemp;
+    strHours = tPostStr.substring(11, 13);
+    strMinutes = tPostStr.substring(14, 16);
 
-    strHoursTemp = tPostStr.substring(11, 13);
-    strMinutesTemp = tPostStr.substring(14, 16);
+    Hours = strHours.toFloat();
+    Minutes = strMinutes.toFloat();
 
-    Hours = strHoursTemp.toFloat();
-    Minutes = strMinutesTemp.toFloat();
+    Serial.println("HoursRaw =   " + strHours);
+    Serial.println("MinutesRaw = " + strMinutes);
 
-    Serial.println("HoursRaw =   " + strHoursTemp);
-    Serial.println("MinutesRaw = " + strMinutesTemp);
+    Hours += (float)tSunOfst;
 
-    Hours += tSunOfst;
-
-    if (Hours < 0)
+    if (Hours < 0.0F)
     {
       Hours += 24.0F;
     }
 
-    Serial.println("Hours   = " + String(Hours));
+    if (Hours < 10.0F)
+    {
+      strHours = '0' + String((int)Hours);
+    }
+    else
+    {
+      strHours = String((int)Hours);
+    }
+
+    Serial.println("Hours   = " + strHours);
     Serial.println("Minutes = " + String(Minutes));
 
     tPostFloat = (Hours + (Minutes / 60.0F));
@@ -436,7 +466,7 @@ void UpdateHomeCenter()
     Serial.println("connection failed");
     return;
   }
-  
+
   if (bDoorOpen)
   {
     strDoorOpen = "/b" + strRoom + "DoorOpen=1";
@@ -477,6 +507,7 @@ void UpdateHomeCenter()
   // Send request to the home center
   String strUrl = "GET " +
                   strLightOn + strDoorOpen + strDaylight + strMotion +
+                  "/Hours=" + strHours + "/Minutes=" + strMinutes +
                   " HTTP/1.1\r\n" +
                   "Host: " + host + "\r\n" +
                   "Connection: close\r\n\r\n";
