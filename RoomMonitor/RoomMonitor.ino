@@ -362,9 +362,9 @@ void PostToThingspeakFunc() {
         strTemp3 = ThingSpeak.readStringField(SunChannel, 3, SunReadKey);
         intCode3 = ThingSpeak.getLastReadStatus();
 
-        Serial.println("tSunRise   = " + strTemp1);
-        Serial.println("tSunSet    = " + strTemp2);
-        Serial.println("tSunOfst   = " + strTemp3);
+        // Serial.println("tSunRise   = " + strTemp1);
+        // Serial.println("tSunSet    = " + strTemp2);
+        // Serial.println("tSunOfst   = " + strTemp3);
 
 
         int index_start;
@@ -374,25 +374,25 @@ void PostToThingspeakFunc() {
         index_start = strTemp1.indexOf('\n');
         index_end = strTemp1.indexOf('\n', index_start + 1);
         str_temp = strTemp1.substring(index_start + 1, index_end - 1);
-        Serial.println("start   = " + String(index_start));
-        Serial.println("end     = " + String(index_end));
-        Serial.println("new tSunRise   = " + str_temp);
+        // Serial.println("start   = " + String(index_start));
+        // Serial.println("end     = " + String(index_end));
+        // Serial.println("new tSunRise   = " + str_temp);
         tSunRise = str_temp.toFloat();
 
         index_start = strTemp2.indexOf('\n');
         index_end = strTemp2.indexOf('\n', index_start + 1);
         str_temp = strTemp2.substring(index_start + 1, index_end - 1);
-        Serial.println("start   = " + String(index_start));
-        Serial.println("end     = " + String(index_end));
-        Serial.println("new tSunSet   = " + str_temp);
+        // Serial.println("start   = " + String(index_start));
+        // Serial.println("end     = " + String(index_end));
+        // Serial.println("new tSunSet   = " + str_temp);
         tSunSet = str_temp.toFloat();
 
         index_start = strTemp3.indexOf('\n');
         index_end = strTemp3.indexOf('\n', index_start + 1);
         str_temp = strTemp3.substring(index_start + 1, index_end - 1);
-        Serial.println("start   = " + String(index_start));
-        Serial.println("end     = " + String(index_end));
-        Serial.println("new tSunSet   = " + str_temp);
+        // Serial.println("start   = " + String(index_start));
+        // Serial.println("end     = " + String(index_end));
+        // Serial.println("new tSunSet   = " + str_temp);
         tSunOfst = str_temp.toFloat();
 
         Serial.println("WriteFields = " + String(intThingSpeakCode));
@@ -411,7 +411,7 @@ void PostToThingspeakFunc() {
         float Minutes;
         float tPostFloat;
 
-        Serial.println(tPostStr);
+        // Serial.println(tPostStr);
 
         strHours = tPostStr.substring(11, 13);
         strMinutes = tPostStr.substring(14, 16);
