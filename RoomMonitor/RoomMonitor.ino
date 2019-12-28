@@ -27,15 +27,15 @@ extern "C" {
 
 #if true
 // Basement
-#define DataChannel BasementChannel
-#define DataWriteKey BasementWriteKey
+// #define DataChannel BasementChannel
+// #define DataWriteKey BasementWriteKey
 String strRoom = "Basement";
 #define bDoorOpenCal true
 
 #else
 // Garage
-#define DataChannel GarageChannel
-#define DataWriteKey GarageWriteKey
+// #define DataChannel GarageChannel
+// #define DataWriteKey GarageWriteKey
 String strRoom = "Garage";
 #define bDoorOpenCal false
 #endif
@@ -45,22 +45,22 @@ DHT dht(iPinDHT, eTypeDHT);
 
 // Script Calibrations
 
-const int CntLoopFast = 300;        // = 300;  // (seconds)  5 min * 60 sec/min
-const int CntLoopSlow = 1800;       // = 1800; // (seconds) 30 min * 60 sec/min
-const int CntWifiRetryAbort = 240;  // = 240;   // (seconds) 4 min * 60 sec/min
+// const int CntLoopFast = 300;        // = 300;  // (seconds)  5 min * 60 sec/min
+// const int CntLoopSlow = 1800;       // = 1800; // (seconds) 30 min * 60 sec/min
+// const int CntWifiRetryAbort = 240;  // = 240;   // (seconds) 4 min * 60 sec/min
 const int CntDoorBeepThresh = 10;   // (seconds)
-const int CntMotionThresh = 5;      // Motion events to trigger fast posts
-const int CntLightOnThresh = 50;    // Light threshold to determine light is on
-const int CntUpdateFailThresh = 5;  // Update fail threshold to try a reset
+// const int CntMotionThresh = 5;      // Motion events to trigger fast posts
+// const int CntLightOnThresh = 50;    // Light threshold to determine light is on
+// const int CntUpdateFailThresh = 5;  // Update fail threshold to try a reset
 
-const float PctMotionThresh = 2.0F;  // Pct of time motion detected below which room is empty
+// const float PctMotionThresh = 2.0F;  // Pct of time motion detected below which room is empty
 
 bool bBeep = false;
-bool bDaylight = false;
+// bool bDaylight = false;
 bool bDoorOpen = false;
-bool bDoorOpenLatch = false;
-bool bDoorOpenLatchPrev = false;
-bool bFirstPostComplete = false;
+// bool bDoorOpenLatch = false;
+// bool bDoorOpenLatchPrev = false;
+// bool bFirstPostComplete = false;
 
 int CntDoorOpen = 0;
 int CntDoorOpenBeep = 0;
@@ -69,20 +69,20 @@ int CntMotionEvents = 0;
 int CntLightIntensity1 = 0;
 int CntLightIntensity2 = 0;
 int CntUpdateFails = 0;
-int intThingSpeakCode = 0;
-int tSunOfst = 0;
+// int intThingSpeakCode = 0;
+// int tSunOfst = 0;
 
 int CntLoopPost = CntLoopSlow;
 
 float PctHumidity = 0.0F;
-float PctMotion = 0.0F;
-float tSunRise = 0.0F;
-float tSunSet = 0.0F;
+// float PctMotion = 0.0F;
+// float tSunRise = 0.0F;
+// float tSunSet = 0.0F;
 float T_DHT = 0.0F;
 
-String strHours = "";
-String strMinutes = "";
-String tPostStr = "";
+// String strHours = "";
+// String strMinutes = "";
+// String tPostStr = "";
 
 float Data[8];
 
