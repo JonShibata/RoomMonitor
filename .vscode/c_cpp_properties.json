@@ -1,16 +1,14 @@
 {
     "configurations": [
         {
-            "name": "Win32",
+            "name": "Linux",
             "includePath": [
-                "C:/Users/szjgcm/AppData/Local/Arduino15/packages/esp8266/tools/**",
-                "C:/Users/szjgcm/AppData/Local/Arduino15/packages/esp8266/hardware/esp8266/2.4.1/**",
-                "C:/Users/szjgcm/Documents/Arduino/libraries/**",
-                "C:\\Users\\szjgcm\\AppData\\Local\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\2.4.1\\**",
-                "C:\\Users\\szjgcm\\AppData\\Local\\Arduino15\\packages\\esp8266\\tools\\**"
+                "/home/jonathan/Arduino/libraries/**",
+                "/usr/share/arduino-1.8.10/hardware/**",
+                "/usr/share/arduino-1.8.10/libraries/**"
             ],
             "forcedInclude": [],
-            "intelliSenseMode": "msvc-x64"
+            "intelliSenseMode": "gcc-x64"
         }
     ],
     "version": 4
