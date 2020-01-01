@@ -1,7 +1,7 @@
 
 #include <DHT.h>
 #include "Network_Info.h"
-#include <WiFi.h>
+#include <ESP8266WiFi.h>
 
 extern "C"
 {
@@ -25,18 +25,16 @@ extern "C"
 #define eTypeDHT DHT22 // Select DHT type
 
 #if true
+
 // Basement
-// #define DataChannel BasementChannel
-// #define DataWriteKey BasementWriteKey
 String strRoom = "Basement";
 #define eDoorOpenCal true
 
 #else
 // Garage
-// #define DataChannel GarageChannel
-// #define DataWriteKey GarageWriteKey
 String strRoom = "Garage";
 #define eDoorOpenCal false
+
 #endif
 
 // Configure DHT
@@ -58,7 +56,8 @@ bool bDoorOpenPrev = false;
 
 bool bDaylight = false;
 
-int CntDoorOpen = 0;
+bool bUpdate = true;
+
 int CntDoorOpenBeep = 0;
 
 int CntLoops = 0;
@@ -103,7 +102,7 @@ void setup()
     os_timer_arm(&myTimer, 1000, true);
 
     digitalWrite(iPinLED_Motion, bLightOff);
-    digitalWrite(iPinLED_Door, bLightOff);
+    digitalWrite(iPinLED_Door, false);
 }
 
 //
@@ -113,49 +112,59 @@ void setup()
 void timerCallback(void *pArg)
 { // timer1 interrupt 1Hz
 
-    CntLoops++;
-    CntLoops = min(CntLoops, 32400);
+    bool bDoorLED;
+    bool bMotionLED;
+
+    if (CntLoops < 32400)
+    {
+
+        CntLoops++;
+    }
 
     if (digitalRead(iPinDoor) == eDoorOpenCal)
     {
-        digitalWrite(iPinLED_Door, bLightOn);
+        bDoorLED = true;
         bDoorOpen = true;
 
-        CntDoorOpen++;
-        CntDoorOpen = min(CntDoorOpen, 32400);
-        CntDoorOpenBeep++;
-        CntDoorOpenBeep = min(CntDoorOpenBeep, 32400);
-
-        if (CntDoorOpenBeep > CntDoorBeepThresh)
+        if (CntDoorOpenBeep < CntDoorBeepThresh)
+        {
+            // Coumt up until beep delay expires
+            CntDoorOpenBeep++;
+        }
+        else
         {
             // Door has been open longer than threshold
             // cycle the audible alert
-            CntDoorOpenBeep = CntDoorBeepThresh;
             bBeep = !bBeep;
-            digitalWrite(iPinBeep, bBeep);
         }
     }
     else
     {
-        digitalWrite(iPinLED_Door, bLightOff);
         bBeep = false;
+        bDoorLED = false;
         bDoorOpen = false;
         CntDoorOpenBeep = 0;
-        digitalWrite(iPinBeep, bBeep);
     }
+
+    digitalWrite(iPinBeep, bBeep);
+    digitalWrite(iPinLED_Door, bDoorLED);
 
     tMotionTimerPrev = tMotionTimer;
     if (digitalRead(iPinMotion))
     {
-        tMotionTimer = tMotionDelay;
-        digitalWrite(iPinLED_Motion, bLightOn);
+        bMotionLED = bLightOn;
+        tMotionTimer = 0;
     }
     else
     {
-        tMotionTimer--;
-        tMotionTimer = max(0, tMotionTimer);
-        digitalWrite(iPinLED_Motion, bLightOff);
+        bMotionLED = bLightOff;
+        if (tMotionTimer < tMotionDelay)
+        {
+            tMotionTimer++;
+        }
     }
+    digitalWrite(iPinLED_Motion, bMotionLED);
+
     // Serial.print(" bDoorOpen = " + String(bDoorOpen));
     // Serial.print(" bBeep = " + String(bBeep));
     // Serial.print(" tMotionTimer = " + String(tMotionTimer));
@@ -186,9 +195,14 @@ void loop()
 
     if ((bLightsTurnedOff) ||
         (bDoorOpen != bDoorOpenPrev) ||
-        (tMotionTimerPrev == 0 && tMotionTimer > 0) ||
-        (tMotionTimerPrev > 0 && tMotionTimer == 0) ||
+        (tMotionTimerPrev >= tMotionDelay && tMotionTimer < tMotionDelay) || // timer started
+        (tMotionTimerPrev < tMotionDelay && tMotionTimer >= tMotionDelay) || // timer complete
         (CntLoops >= CntLoopPost))
+    {
+        bUpdate = true;
+    }
+
+    if (bUpdate)
     {
 
         Read_DHT();
@@ -202,6 +216,7 @@ void loop()
         if (WiFi.status() == WL_CONNECTED)
         {
             UpdateHomeCenter();
+            bUpdate = false;
             CntLoops = 0;
         }
     }
@@ -370,7 +385,7 @@ void UpdateHomeCenter()
 
     // Send request to the home center
     String strUrl =
-        "GET " + strDoorOpen + strMotion + strLight1 + strLight2 + 
+        "GET " + strDoorOpen + strMotion + strLight1 + strLight2 +
         "T_DHT" + strRoom + "=" + String(T_DHT) + ";" +
         "PctHumidity" + strRoom + "=" + String(PctHumidity) + ";" +
         " HTTP/1.1\r\n" + "Host: " + host + "\r\n" +
