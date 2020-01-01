@@ -41,15 +41,16 @@ String strRoom = "Garage";
 DHT dht(iPinDHT, eTypeDHT);
 
 // Script Calibrations
-const int CntLoopPost = 3600;     // = 3600; // (seconds) 60 min * 60 sec/min
-const int CntDoorBeepThresh = 10; // (seconds)
-const int tMotionDelay = 300;     // Secs to set update when motion detected
+const int CntLoopPost = 3600;    // = 3600; // (seconds) 60 min * 60 sec/min
+const int CntDoorOpenBeepDelay = 10; // (seconds)
+const int CntMotionDelay = 300;  // Secs to set update when motion detected
 
 int CntLightOnThresh = 50; // Light threshold to determine light is on
 
 bool bBeep = false;
 
 bool bMotion = false;
+bool bMotionPrev = false;
 
 bool bDoorOpen = false;
 bool bDoorOpenPrev = false;
@@ -58,7 +59,7 @@ bool bDaylight = false;
 
 bool bUpdate = true;
 
-int CntDoorOpenBeep = 0;
+int CntDoorOpen = 0;
 
 int CntLoops = 0;
 
@@ -67,8 +68,7 @@ int CntLightIntensity1Prev = 0;
 int CntLightIntensity2 = 0;
 int CntLightIntensity2Prev = 0;
 
-int tMotionTimer = 0;
-int tMotionTimerPrev = 0;
+int CntMotionTimer = 0;
 
 float PctHumidity = 0.0F;
 float T_DHT = 0.0F;
@@ -115,9 +115,8 @@ void timerCallback(void *pArg)
     bool bDoorLED;
     bool bMotionLED;
 
-    if (CntLoops < 32400)
+    if (CntLoops < CntLoopPost)
     {
-
         CntLoops++;
     }
 
@@ -126,14 +125,14 @@ void timerCallback(void *pArg)
         bDoorLED = true;
         bDoorOpen = true;
 
-        if (CntDoorOpenBeep < CntDoorBeepThresh)
+        if (CntDoorOpen < CntDoorOpenBeepDelay)
         {
             // Coumt up until beep delay expires
-            CntDoorOpenBeep++;
+            CntDoorOpen++;
         }
         else
         {
-            // Door has been open longer than threshold
+            // Door has been open longer than delay cal
             // cycle the audible alert
             bBeep = !bBeep;
         }
@@ -143,24 +142,26 @@ void timerCallback(void *pArg)
         bBeep = false;
         bDoorLED = false;
         bDoorOpen = false;
-        CntDoorOpenBeep = 0;
+        CntDoorOpen = 0;
     }
 
     digitalWrite(iPinBeep, bBeep);
     digitalWrite(iPinLED_Door, bDoorLED);
 
-    tMotionTimerPrev = tMotionTimer;
     if (digitalRead(iPinMotion))
     {
+        bMotion = true;
         bMotionLED = bLightOn;
-        tMotionTimer = 0;
+        CntMotionTimer = 0;
     }
     else
     {
         bMotionLED = bLightOff;
-        if (tMotionTimer < tMotionDelay)
+        if (CntMotionTimer < CntMotionDelay)
         {
-            tMotionTimer++;
+            CntMotionTimer++;
+        }else{
+            bMotion = false;
         }
     }
     digitalWrite(iPinLED_Motion, bMotionLED);
@@ -195,12 +196,14 @@ void loop()
 
     if ((bLightsTurnedOff) ||
         (bDoorOpen != bDoorOpenPrev) ||
-        (tMotionTimerPrev >= tMotionDelay && tMotionTimer < tMotionDelay) || // timer started
-        (tMotionTimerPrev < tMotionDelay && tMotionTimer >= tMotionDelay) || // timer complete
+        (bMotion != bMotionPrev) ||
         (CntLoops >= CntLoopPost))
     {
         bUpdate = true;
     }
+
+    bDoorOpenPrev = bDoorOpen;
+    bMotionPrev = bMotion;
 
     if (bUpdate)
     {
@@ -221,7 +224,7 @@ void loop()
         }
     }
 
-    bDoorOpenPrev = bDoorOpen;
+    
 }
 
 //
@@ -368,7 +371,7 @@ void UpdateHomeCenter()
         strDoorOpen = "/bDoorOpen" + strRoom + "=0;";
     }
 
-    if (tMotionTimer > 0)
+    if (bMotion)
     {
         strMotion = "/bMotion" + strRoom + "=1;";
     }
