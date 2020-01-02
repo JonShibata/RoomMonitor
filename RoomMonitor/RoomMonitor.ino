@@ -41,9 +41,9 @@ String strRoom = "Garage";
 DHT dht(iPinDHT, eTypeDHT);
 
 // Script Calibrations
-const int CntLoopPost = 3600;    // = 3600; // (seconds) 60 min * 60 sec/min
+const int CntLoopPost = 3600;        // = 3600; // (seconds) 60 min * 60 sec/min
 const int CntDoorOpenBeepDelay = 10; // (seconds)
-const int CntMotionDelay = 300;  // Secs to set update when motion detected
+const int CntMotionDelay = 300;      // Secs to set update when motion detected
 
 int CntLightOnThresh = 50; // Light threshold to determine light is on
 
@@ -160,7 +160,9 @@ void timerCallback(void *pArg)
         if (CntMotionTimer < CntMotionDelay)
         {
             CntMotionTimer++;
-        }else{
+        }
+        else
+        {
             bMotion = false;
         }
     }
@@ -223,8 +225,6 @@ void loop()
             CntLoops = 0;
         }
     }
-
-    
 }
 
 //
@@ -388,7 +388,7 @@ void UpdateHomeCenter()
 
     // Send request to the home center
     String strUrl =
-        "GET /bHomeMonitor=1;" + 
+        "GET /bHomeMonitor=1;" +
         strDoorOpen + strMotion + strLight1 + strLight2 +
         "T_DHT" + strRoom + "=" + String(T_DHT) + ";" +
         "PctHumidity" + strRoom + "=" + String(PctHumidity) + ";" +
@@ -403,7 +403,7 @@ void UpdateHomeCenter()
     {
         //TODO: Parse variables from update
 
-String line = client.readStringUntil('\r');
+        String line = client.readStringUntil('\r');
         Serial.print(line);
     }
 }
