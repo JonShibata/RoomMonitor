@@ -127,7 +127,7 @@ void timerCallback(void *pArg)
 
         if (CntDoorOpen < CntDoorOpenBeepDelay)
         {
-            // Coumt up until beep delay expires
+            // Count up until beep delay expires
             CntDoorOpen++;
         }
         else
@@ -388,7 +388,8 @@ void UpdateHomeCenter()
 
     // Send request to the home center
     String strUrl =
-        "GET " + strDoorOpen + strMotion + strLight1 + strLight2 +
+        "GET /bHomeMonitor=1;" + 
+        strDoorOpen + strMotion + strLight1 + strLight2 +
         "T_DHT" + strRoom + "=" + String(T_DHT) + ";" +
         "PctHumidity" + strRoom + "=" + String(PctHumidity) + ";" +
         " HTTP/1.1\r\n" + "Host: " + host + "\r\n" +
@@ -400,7 +401,9 @@ void UpdateHomeCenter()
     // Read all the lines of the reply from server and print them to Serial
     while (client.available())
     {
-        String line = client.readStringUntil('\r');
+        //TODO: Parse variables from update
+
+String line = client.readStringUntil('\r');
         Serial.print(line);
     }
 }
