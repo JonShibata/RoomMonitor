@@ -174,6 +174,27 @@ void timerCallback(void *pArg)
     // Serial.println(" CntLoops = " + String(CntLoops));
 }
 
+void FindIntInString(String strMain, String strFind, int *ptrData)
+{
+    int i_start = strMain.indexOf(strFind);
+    if (i_start != -1)
+    {
+        int i_end = strMain.indexOf(";", i_start);
+        int lenFind = strFind.length;
+        *ptrData = strMain.substring(i_start + lenFind, i_end - 1).toInt();
+    }
+}
+
+void FindBoolInString(String strMain, String strFind, bool *ptrData)
+{
+    int i_start = strMain.indexOf(strFind);
+    if (i_start != -1)
+    {
+        int lenFind = strFind.length;
+        *ptrData = (bool)strMain.substring(i_start + lenFind, lenFind + 1).toInt();
+    }
+}
+
 //
 //
 // Main loop to evaluate the need to post an update and reset the values
@@ -403,7 +424,10 @@ void UpdateHomeCenter()
     {
         //TODO: Parse variables from update
 
-        String line = client.readStringUntil('\r');
-        Serial.print(line);
+        String info = client.readStringUntil('\r');
+        Serial.print(info);
+
+        FindBoolInString(info, "/bDaylight=", &bDaylight);
+        FindIntInString(info, "/CntLightOnThresh=", &CntLightOnThresh);
     }
 }
