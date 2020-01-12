@@ -31,5 +31,5 @@
 *.out
 *.app
 
-# # Shibata
-# Network_Info.h
+# Shibata
+Network_Info.h
