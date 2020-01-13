@@ -40,19 +40,19 @@ String strRoom = "Garage";
 DHT dht(iPinDHT, eTypeDHT);
 
 // Script Calibrations
-const int CntLoopPost = 3600;         // = 3600; // (seconds) 60 min * 60 sec/min
-const int CntDoorOpenBeepDelay = 10;  // (seconds)
-const int CntMotionDelay = 300;       // Secs to set update when motion detected
-const int CntWifiRetryAbort = 5;      // Times to try connecting to home center before aborting
+const int CntLoopPost          = 3600;  // = 3600; // (seconds) 60 min * 60 sec/min
+const int CntDoorOpenBeepDelay = 10;    // (seconds)
+const int CntMotionDelay       = 300;   // Secs to set update when motion detected
+const int CntWifiRetryAbort    = 5;     // Times to try connecting to home center before aborting
 
 int CntLightOnThresh = 50;  // Light threshold to determine light is on
 
 bool bBeep = false;
 
-bool bMotion = false;
+bool bMotion     = false;
 bool bMotionPrev = false;
 
-bool bDoorOpen = false;
+bool bDoorOpen     = false;
 bool bDoorOpenPrev = false;
 
 bool bDaylight = false;
@@ -63,15 +63,15 @@ int CntDoorOpen = 0;
 
 int CntLoops = 0;
 
-int CntLightIntensity1 = 0;
+int CntLightIntensity1     = 0;
 int CntLightIntensity1Prev = 0;
-int CntLightIntensity2 = 0;
+int CntLightIntensity2     = 0;
 int CntLightIntensity2Prev = 0;
 
 int CntMotionTimer = 0;
 
 float PctHumidity = 0.0F;
-float T_DHT = 0.0F;
+float T_DHT       = 0.0F;
 
 os_timer_t myTimer;
 
@@ -118,7 +118,7 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     }
 
     if (digitalRead(iPinDoor) == eDoorOpenCal) {
-        bDoorLED = true;
+        bDoorLED  = true;
         bDoorOpen = true;
 
         if (CntDoorOpen < CntDoorOpenBeepDelay) {
@@ -130,9 +130,9 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
             bBeep = !bBeep;
         }
     } else {
-        bBeep = false;
-        bDoorLED = false;
-        bDoorOpen = false;
+        bBeep       = false;
+        bDoorLED    = false;
+        bDoorOpen   = false;
         CntDoorOpen = 0;
     }
 
@@ -140,8 +140,8 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     digitalWrite(iPinLED_Door, bDoorLED);
 
     if (digitalRead(iPinMotion)) {
-        bMotion = true;
-        bMotionLED = bLightOn;
+        bMotion        = true;
+        bMotionLED     = bLightOn;
         CntMotionTimer = 0;
     } else {
         bMotionLED = bLightOff;
@@ -159,34 +159,37 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     // Serial.println(" CntLoops = " + String(CntLoops));
 }
 
+
 void FindIntInString(String strMain, String strFind, int* ptrData) {
-    int i_start = strMain.indexOf(strFind);
-    if (i_start != -1) {
-        int i_end = strMain.indexOf(";", i_start);
+    int iStart = strMain.indexOf(strFind);
+    if (iStart != -1) {
+        int iEnd    = strMain.indexOf(";", iStart);
         int lenFind = (int)strFind.length();
-        *ptrData = strMain.substring(i_start + lenFind, i_end - 1).toInt();
+        *ptrData    = strMain.substring(iStart + lenFind, iEnd).toInt();
     }
 }
 
 void FindBoolInString(String strMain, String strFind, bool* ptrData) {
-    int i_start = strMain.indexOf(strFind);
-    if (i_start != -1) {
+    int iStart = strMain.indexOf(strFind);
+    if (iStart != -1) {
         int lenFind = (int)strFind.length();
-        *ptrData = (bool)strMain.substring(i_start + lenFind, lenFind + 1).toInt();
+        int iData   = iStart + lenFind;
+        *ptrData    = (bool)strMain.substring(iData, iData + 1).toInt();
     }
 }
+
 
 //
 //
 // Main loop to evaluate the need to post an update and reset the values
 
 void loop() {
-    bool bReadLights = true;
+    bool bReadLights      = true;
     bool bLightsTurnedOff = false;
 
     if (!bDaylight) {
-        if (CntLightIntensity1Prev > CntLightOnThresh
-            || CntLightIntensity2Prev > CntLightOnThresh) {
+        if (CntLightIntensity1Prev > CntLightOnThresh ||
+            CntLightIntensity2Prev > CntLightOnThresh) {
             ReadLights();
             bReadLights = false;
             if (CntLightIntensity1 < CntLightOnThresh && CntLightIntensity2 < CntLightOnThresh)
@@ -194,13 +197,13 @@ void loop() {
         }
     }
 
-    if ((bLightsTurnedOff) || (bDoorOpen != bDoorOpenPrev) || (bMotion != bMotionPrev)
-        || (CntLoops >= CntLoopPost)) {
+    if ((bLightsTurnedOff) || (bDoorOpen != bDoorOpenPrev) || (bMotion != bMotionPrev) ||
+        (CntLoops >= CntLoopPost)) {
         bUpdate = true;
     }
 
     bDoorOpenPrev = bDoorOpen;
-    bMotionPrev = bMotion;
+    bMotionPrev   = bMotion;
 
     if (bUpdate) {
 
@@ -213,18 +216,19 @@ void loop() {
 
         if (WiFi.status() == WL_CONNECTED) {
             UpdateHomeCenter();
-            bUpdate = false;
+            bUpdate  = false;
             CntLoops = 0;
         }
     }
 }
+
 
 //
 //
 // Function to read temperature and humidity from the DHT
 
 void Read_DHT() {
-    int CntTempReads = 0;
+    int CntTempReads     = 0;
     int CntHumidityReads = 0;
 
     T_DHT = -99.0F;
@@ -256,6 +260,7 @@ void Read_DHT() {
     Serial.println(" PctHumidity = " + String(PctHumidity));
 }
 
+
 //
 //
 // Function to multiplex the light sensors and read analog voltages
@@ -284,6 +289,7 @@ void ReadLights() {
     Serial.println(" Light1      = " + String(CntLightIntensity1));
     Serial.println(" Light2      = " + String(CntLightIntensity2));
 }
+
 
 //
 //
@@ -316,6 +322,7 @@ void ConnectToWiFi() {
     }
 }
 
+
 //
 //
 // Update the home center with the collected data
@@ -341,18 +348,18 @@ void UpdateHomeCenter() {
         return;
     }
 
-    strDoorOpen = "/bDoorOpen" + strRoom + "=" + String(bDoorOpen) + ";";
-    strMotion = "/bMotion" + strRoom + "=" + String(bMotion) + ";";
-    strLight1 = "/CntLightIntensity1" + strRoom + "=" + String(CntLightIntensity1) + ";";
-    strLight2 = "/CntLightIntensity2" + strRoom + "=" + String(CntLightIntensity2) + ";";
-    strT_DHT = "/T_DHT" + strRoom + "=" + String(T_DHT) + ";";
-    strPctHumidity "/PctHumidity" + strRoom + "=" + String(PctHumidity) + ";";
+    strDoorOpen    = "/bDoorOpen=" + String(bDoorOpen) + ";";
+    strMotion      = "/bMotion=" + String(bMotion) + ";";
+    strLight1      = "/CntLightIntensity1=" + String(CntLightIntensity1) + ";";
+    strLight2      = "/CntLightIntensity2=" + String(CntLightIntensity2) + ";";
+    strT_DHT       = "/T_DHT=" + String(T_DHT) + ";";
+    strPctHumidity = "/PctHumidity=" + String(PctHumidity) + ";";
 
 
     // Send request to the home center
-    String strUrl = "GET /bHomeMonitor=1;" + strDoorOpen + strMotion + strLight1 + strLight2
-            + strT_DHT + strPctHumidity + " HTTP/1.1\r\n" + "Host: " + host + "\r\n"
-            + "Connection: close\r\n\r\n";
+    String strUrl = "GET /bHomeMonitor=1;/strRoom=" + strRoom + ";" + strDoorOpen + strMotion +
+            strLight1 + strLight2 + strT_DHT + strPctHumidity + " HTTP/1.1\r\n" + "Host: " + host +
+            "\r\n" + "Connection: close\r\n\r\n";
 
     Serial.println(strUrl);
     client.print(strUrl);

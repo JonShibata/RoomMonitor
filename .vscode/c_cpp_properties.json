@@ -5,7 +5,9 @@
             "includePath": [
                 "/home/jonathan/Arduino/libraries/**",
                 "/usr/share/arduino-1.8.10/hardware/**",
-                "/usr/share/arduino-1.8.10/libraries/**"
+                "/usr/share/arduino-1.8.10/libraries/**",
+                "C:\\Users\\szjgcm\\AppData\\Local\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\2.6.3\\**",
+                "C:\\Users\\szjgcm\\AppData\\Local\\Arduino15\\packages\\esp8266\\tools\\**"
             ],
             "forcedInclude": [],
             "intelliSenseMode": "gcc-x64"
