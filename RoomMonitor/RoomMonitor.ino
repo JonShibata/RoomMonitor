@@ -1,11 +1,17 @@
 
 #include <DHT.h>
-#include "Network_Info.h"
+#include "ScriptConfig.h"
 #include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
 
 extern "C" {
 #include "user_interface.h"
 }
+
+
+// TODO: Update IFTTT for door state change and lights on / off at night
+// TODO: Use IFTTT to update a google sheet with the data
+
 
 // Define pin locations
 
@@ -18,12 +24,9 @@ extern "C" {
 #define iPinLightD2 13    // GPIO13: D7
 #define iPinLED_Door 15   // GPIO15: D8
 
-#define bLightOn false  // LED low side drive
-#define bLightOff true  // LED low side drive
-
 #define eTypeDHT DHT22  // Select DHT type
 
-#if true
+#if false
 
 // Basement
 String strRoom = "Basement";
@@ -39,13 +42,6 @@ String strRoom = "Garage";
 // Configure DHT
 DHT dht(iPinDHT, eTypeDHT);
 
-// Script Calibrations
-const int CntLoopPost          = 3600;  // = 3600; // (seconds) 60 min * 60 sec/min
-const int CntDoorOpenBeepDelay = 10;    // (seconds)
-const int CntMotionDelay       = 300;   // Secs to set update when motion detected
-const int CntWifiRetryAbort    = 5;     // Times to try connecting to home center before aborting
-
-int CntLightOnThresh = 50;  // Light threshold to determine light is on
 
 bool bBeep = false;
 
@@ -100,7 +96,7 @@ void setup() {
     os_timer_setfn(&myTimer, timerCallback, NULL);
     os_timer_arm(&myTimer, 1000, true);
 
-    digitalWrite(iPinLED_Motion, bLightOff);
+    digitalWrite(iPinLED_Motion, true);  // set to off (low side drive)
     digitalWrite(iPinLED_Door, false);
 }
 
@@ -141,33 +137,34 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
 
     if (digitalRead(iPinMotion)) {
         bMotion        = true;
-        bMotionLED     = bLightOn;
+        bMotionLED     = true;
         CntMotionTimer = 0;
     } else {
-        bMotionLED = bLightOff;
+        bMotionLED = false;
         if (CntMotionTimer < CntMotionDelay) {
             CntMotionTimer++;
         } else {
             bMotion = false;
         }
     }
-    digitalWrite(iPinLED_Motion, bMotionLED);
+    digitalWrite(iPinLED_Motion, !bMotionLED);  // set LED (low side drive)
 
-    // Serial.print(" bDoorOpen = " + String(bDoorOpen));
-    // Serial.print(" bBeep = " + String(bBeep));
-    // Serial.print(" tMotionTimer = " + String(tMotionTimer));
-    // Serial.println(" CntLoops = " + String(CntLoops));
+    Serial.print(" bDoorOpen = " + String(bDoorOpen));
+    Serial.print(" bBeep = " + String(bBeep));
+    Serial.println(" CntLoops = " + String(CntLoops));
 }
 
 
 void FindIntInString(String strMain, String strFind, int* ptrData) {
     int iStart = strMain.indexOf(strFind);
     if (iStart != -1) {
-        int iEnd    = strMain.indexOf(";", iStart);
+        int iEnd    = strMain.indexOf(",", iStart);
         int lenFind = (int)strFind.length();
         *ptrData    = strMain.substring(iStart + lenFind, iEnd).toInt();
+        Serial.println(strFind + String(*ptrData));
     }
 }
+
 
 void FindBoolInString(String strMain, String strFind, bool* ptrData) {
     int iStart = strMain.indexOf(strFind);
@@ -175,6 +172,7 @@ void FindBoolInString(String strMain, String strFind, bool* ptrData) {
         int lenFind = (int)strFind.length();
         int iData   = iStart + lenFind;
         *ptrData    = (bool)strMain.substring(iData, iData + 1).toInt();
+        Serial.println(strFind + String(*ptrData));
     }
 }
 
@@ -215,6 +213,7 @@ void loop() {
         ConnectToWiFi();
 
         if (WiFi.status() == WL_CONNECTED) {
+
             UpdateHomeCenter();
             bUpdate  = false;
             CntLoops = 0;
@@ -323,54 +322,45 @@ void ConnectToWiFi() {
 }
 
 
+void GetHTTP_String(String* strURL, String* strReturn) {
+
+    HTTPClient http;
+
+    http.begin(*strURL);
+    int httpCode = http.GET();
+    Serial.println("httpCode=" + String(httpCode));
+
+    if (httpCode > 0) {
+        *strReturn = http.getString();
+        Serial.println(*strReturn);
+    }
+
+    http.end();
+}
+
+
 //
 //
 // Update the home center with the collected data
 
 void UpdateHomeCenter() {
 
-    // TODO: Adjust the post strings to reflect the updated data and update triggers
+    String s = "http://" + host;
+    s += "/bHomeMonitor=1&strRoom=" + strRoom + "&";
+    s += "bDoorOpen=" + String(bDoorOpen) + "&";
+    s += "bMotion=" + String(bMotion) + "&";
+    s += "CntLightIntensity1=" + String(CntLightIntensity1) + "&";
+    s += "CntLightIntensity2=" + String(CntLightIntensity2) + "&";
+    s += "T_DHT=" + String(T_DHT) + "&";
+    s += "PctHumidity=" + String(PctHumidity) + "&";
 
-    String strLight1;
-    String strLight2;
-    String strDoorOpen;
-    String strDaylight;
-    String strMotion;
-    String strT_DHT;
-    String strPctHumidity;
+    String strReturn;
+    GetHTTP_String(&s, &strReturn);
 
-    const int httpPort = 80;
+    Serial.println(s);
+    Serial.println("strReturn:");
+    Serial.println(strReturn);
 
-    WiFiClient client;
-
-    if (!client.connect(host, httpPort)) {
-        Serial.println("connection failed");
-        return;
-    }
-
-    strDoorOpen    = "/bDoorOpen=" + String(bDoorOpen) + ";";
-    strMotion      = "/bMotion=" + String(bMotion) + ";";
-    strLight1      = "/CntLightIntensity1=" + String(CntLightIntensity1) + ";";
-    strLight2      = "/CntLightIntensity2=" + String(CntLightIntensity2) + ";";
-    strT_DHT       = "/T_DHT=" + String(T_DHT) + ";";
-    strPctHumidity = "/PctHumidity=" + String(PctHumidity) + ";";
-
-
-    // Send request to the home center
-    String strUrl = "GET /bHomeMonitor=1;/strRoom=" + strRoom + ";" + strDoorOpen + strMotion +
-            strLight1 + strLight2 + strT_DHT + strPctHumidity + " HTTP/1.1\r\n" + "Host: " + host +
-            "\r\n" + "Connection: close\r\n\r\n";
-
-    Serial.println(strUrl);
-    client.print(strUrl);
-
-    // Read all the lines of the reply from server and print them to Serial
-    while (client.available()) {
-
-        String info = client.readStringUntil('\r');
-        Serial.print(info);
-
-        FindBoolInString(info, "/bDaylight=", &bDaylight);
-        FindIntInString(info, "/CntLightOnThresh=", &CntLightOnThresh);
-    }
+    FindBoolInString(strReturn, "bDaylight\":\"", &bDaylight);
+    FindIntInString(strReturn, "CntLightOnThresh\":\"", &CntLightOnThresh);
 }

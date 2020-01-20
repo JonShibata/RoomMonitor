@@ -32,4 +32,4 @@
 *.app
 
 # Shibata
-Network_Info.h
+ScriptConfig.h
