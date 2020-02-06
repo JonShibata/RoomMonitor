@@ -26,18 +26,6 @@ extern "C" {
 
 #define eTypeDHT DHT22  // Select DHT type
 
-#if false
-
-// Basement
-String strRoom = "Basement";
-#define eDoorOpenCal true
-
-#else
-// Garage
-String strRoom = "Garage";
-#define eDoorOpenCal false
-
-#endif
 
 // Configure DHT
 DHT dht(iPinDHT, eTypeDHT);
@@ -45,11 +33,13 @@ DHT dht(iPinDHT, eTypeDHT);
 
 bool bBeep = false;
 
-bool bMotion     = false;
-bool bMotionPrev = false;
+bool bMotion       = false;
+bool bMotionPrev   = false;
+bool bMotionUpdate = false;
 
-bool bDoorOpen     = false;
-bool bDoorOpenPrev = false;
+bool bDoorOpen       = false;
+bool bDoorOpenPrev   = false;
+bool bDoorOpenUpdate = false;
 
 bool bDaylight = false;
 
@@ -68,6 +58,11 @@ int CntMotionTimer = 0;
 
 float PctHumidity = 0.0F;
 float T_DHT       = 0.0F;
+
+float tSunrise;
+float tSunset;
+
+unsigned long ulTime = ULONG_LONG_MAX;
 
 os_timer_t myTimer;
 
@@ -98,6 +93,8 @@ void setup() {
 
     digitalWrite(iPinLED_Motion, true);  // set to off (low side drive)
     digitalWrite(iPinLED_Door, false);
+
+    ConnectToWiFi();
 }
 
 //
@@ -155,28 +152,6 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
 }
 
 
-void FindIntInString(String strMain, String strFind, int* ptrData) {
-    int iStart = strMain.indexOf(strFind);
-    if (iStart != -1) {
-        int iEnd    = strMain.indexOf(",", iStart);
-        int lenFind = (int)strFind.length();
-        *ptrData    = strMain.substring(iStart + lenFind, iEnd).toInt();
-        Serial.println(strFind + String(*ptrData));
-    }
-}
-
-
-void FindBoolInString(String strMain, String strFind, bool* ptrData) {
-    int iStart = strMain.indexOf(strFind);
-    if (iStart != -1) {
-        int lenFind = (int)strFind.length();
-        int iData   = iStart + lenFind;
-        *ptrData    = (bool)strMain.substring(iData, iData + 1).toInt();
-        Serial.println(strFind + String(*ptrData));
-    }
-}
-
-
 //
 //
 // Main loop to evaluate the need to post an update and reset the values
@@ -197,11 +172,11 @@ void loop() {
 
     if ((bLightsTurnedOff) || (bDoorOpen != bDoorOpenPrev) || (bMotion != bMotionPrev) ||
         (CntLoops >= CntLoopPost)) {
-        bUpdate = true;
+        bUpdate         = true;
+        bDoorOpenUpdate = bDoorOpen;
+        bMotionUpdate   = bMotion;
     }
 
-    bDoorOpenPrev = bDoorOpen;
-    bMotionPrev   = bMotion;
 
     if (bUpdate) {
 
@@ -210,13 +185,18 @@ void loop() {
             ReadLights();
         }
 
-        ConnectToWiFi();
+        if (WiFi.status() != WL_CONNECTED) {
+            ConnectToWiFi();
+        }
 
         if (WiFi.status() == WL_CONNECTED) {
-
+            DetermineDaylight();
+            UpdateSheets();
             UpdateHomeCenter();
-            bUpdate  = false;
-            CntLoops = 0;
+            bUpdate       = false;
+            bDoorOpenPrev = bDoorOpenUpdate;
+            bMotionPrev   = bMotionUpdate;
+            CntLoops      = 0;
         }
     }
 }
@@ -322,7 +302,65 @@ void ConnectToWiFi() {
 }
 
 
-void GetHTTP_String(String* strURL, String* strReturn) {
+void DetermineDaylight() {
+    String strSunrise, strSunset, strDateTime;
+    // String* ptrUpdateTime;
+
+    bool bUpdateSunriseSunset = false;
+    // if millis has wrapped around or if 1 day has past then update
+    if (millis() < 8640000) {
+        if (ulTime > 86400000) {
+            bUpdateSunriseSunset = true;
+        }
+    } else {
+        if (ulTime < millis() - 86400000) {
+            bUpdateSunriseSunset = true;
+        }
+    }
+
+
+    if (bUpdateSunriseSunset) {
+
+        String strRequest = "http://api.sunrise-sunset.org/json?lat=42.391&lng=-83.779&formatted=0";
+        String strReturn;
+        int    httpCode = GetHTTP_String(&strRequest, &strReturn);
+
+        if (httpCode > 0) {
+            ulTime   = millis();
+            tSunrise = GetDate_Hour_Min(strReturn, "sunrise", &strSunrise);
+            tSunset  = GetDate_Hour_Min(strReturn, "sunset", &strSunset);
+        }
+    }
+
+
+    String strRequest = "http://worldtimeapi.org/api/timezone/America/Detroit";
+    String strReturn;
+    int    httpCode = GetHTTP_String(&strRequest, &strReturn);
+
+    if (httpCode > 0) {
+        String strSearch = "utc_datetime";
+
+        float tNow = GetDate_Hour_Min(strReturn, strSearch, &strDateTime);
+
+        bDaylight = (tSunrise < tNow) && (tNow < tSunset);
+    }
+}
+
+float GetDate_Hour_Min(String strMain, String strSearch, String* strDateTime) {
+
+    int lenSearchStr = strSearch.length() + 3;  // 3 for ":"
+
+    int iStart   = strMain.indexOf(strSearch) + lenSearchStr;
+    *strDateTime = strMain.substring(iStart, iStart + 19);
+    Serial.println(strSearch + " - " + *strDateTime);
+
+    float fltHoursTemp   = strMain.substring(iStart + 11, iStart + 13).toFloat();
+    float fltMinutesTemp = strMain.substring(iStart + 14, iStart + 16).toFloat();
+
+    return (fltHoursTemp + (fltMinutesTemp / 60.0F));
+}
+
+int GetHTTP_String(String* strURL, String* strReturn) {
 
     HTTPClient http;
 
@@ -336,6 +374,56 @@ void GetHTTP_String(String* strURL, String* strReturn) {
     }
 
     http.end();
+    return httpCode;
+}
+
+
+void FindIntInString(String strMain, String strFind, int* ptrData) {
+    int iStart = strMain.indexOf(strFind);
+    if (iStart != -1) {
+        int iEnd    = strMain.indexOf(",", iStart);
+        int lenFind = (int)strFind.length();
+        *ptrData    = strMain.substring(iStart + lenFind, iEnd).toInt();
+        Serial.println(strFind + String(*ptrData));
+    }
+}
+
+
+void FindBoolInString(String strMain, String strFind, bool* ptrData) {
+    int iStart = strMain.indexOf(strFind);
+    if (iStart != -1) {
+        int lenFind = (int)strFind.length();
+        int iData   = iStart + lenFind;
+        *ptrData    = (bool)strMain.substring(iData, iData + 1).toInt();
+        Serial.println(strFind + String(*ptrData));
+    }
+}
+
+
+void UpdateSheets() {
+    String s;
+    String strReturn;
+
+    s = ifttt_server + ifttt_action1 + strCellLight1 + String(CntLightIntensity1);
+    GetHTTP_String(&s, &strReturn);
+    s = ifttt_server + ifttt_action1 + strCellLight2 + String(CntLightIntensity2);
+    GetHTTP_String(&s, &strReturn);
+    s = ifttt_server + ifttt_action1 + strCellDoor + String(bDoorOpen);
+    GetHTTP_String(&s, &strReturn);
+    s = ifttt_server + ifttt_action1 + strCellMotion + String(bMotion);
+    GetHTTP_String(&s, &strReturn);
+    s = ifttt_server + ifttt_action1 + strCellTemp + String(T_DHT);
+    GetHTTP_String(&s, &strReturn);
+    s = ifttt_server + ifttt_action1 + strCellHum + String(PctHumidity);
+    GetHTTP_String(&s, &strReturn);
+
+    s = ifttt_server + ifttt_action2 + "?value1=" + String(bMotion) +
+            "&value2=" + String(CntLightIntensity1) + "&value3=" + String(CntLightIntensity2);
+    GetHTTP_String(&s, &strReturn);
+
+    s = ifttt_server + ifttt_action3 + "?value1=" + String(bDoorOpen) + "&value2=" + String(T_DHT) +
+            "&value3=" + String(PctHumidity);
+    GetHTTP_String(&s, &strReturn);
 }
 
 
@@ -353,6 +441,7 @@ void UpdateHomeCenter() {
     s += "CntLightIntensity2=" + String(CntLightIntensity2) + "&";
     s += "T_DHT=" + String(T_DHT) + "&";
     s += "PctHumidity=" + String(PctHumidity) + "&";
+    s += "bDaylight=" + String(bDaylight) + "&";
 
     String strReturn;
     GetHTTP_String(&s, &strReturn);
@@ -361,6 +450,8 @@ void UpdateHomeCenter() {
     Serial.println("strReturn:");
     Serial.println(strReturn);
 
-    FindBoolInString(strReturn, "bDaylight\":\"", &bDaylight);
+    FindIntInString(strReturn, "CntDoorOpenBeepDelay\":\"", &CntDoorOpenBeepDelay);
     FindIntInString(strReturn, "CntLightOnThresh\":\"", &CntLightOnThresh);
+    FindIntInString(strReturn, "CntMotionDelay\":\"", &CntMotionDelay);
+    FindIntInString(strReturn, "CntWifiRetryAbort\":\"", &CntWifiRetryAbort);
 }
