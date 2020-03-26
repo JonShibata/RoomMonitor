@@ -10,7 +10,6 @@ extern "C" {
 
 
 // TODO: Update IFTTT for door state change and lights on / off at night
-// TODO: Use IFTTT to update a google sheet with the data
 
 
 // Define pin locations
@@ -327,8 +326,8 @@ void DetermineDaylight() {
 
         if (httpCode > 0) {
             ulTime   = millis();
-            tSunrise = GetDate_Hour_Min(strReturn, "sunrise", &strSunrise);
-            tSunset  = GetDate_Hour_Min(strReturn, "sunset", &strSunset);
+            tSunrise = GetDate_Hour_Min(strReturn, "civil_twilight_begin", &strSunrise);
+            tSunset  = GetDate_Hour_Min(strReturn, "civil_twilight_end", &strSunset);
         }
     }
 
@@ -342,7 +341,11 @@ void DetermineDaylight() {
 
         float tNow = GetDate_Hour_Min(strReturn, strSearch, &strDateTime);
 
-        bDaylight = (tSunrise < tNow) && (tNow < tSunset);
+        if (tSunset > tSunrise) {
+            bDaylight = (tSunrise < tNow) && (tNow < tSunset);
+        } else {
+            bDaylight = (tSunrise < tNow) || (tNow < tSunset);
+        }
     }
 }
 
