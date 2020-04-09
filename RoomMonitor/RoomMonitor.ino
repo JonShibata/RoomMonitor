@@ -33,11 +33,10 @@ DHT dht(iPinDHT, eTypeDHT);
 bool bBeep = false;
 
 bool bMotion       = false;
-bool bMotionPrev   = false;
 bool bMotionUpdate = false;
 
 bool bDoorOpen       = false;
-bool bDoorOpenPrev   = false;
+bool bDoorOpenLatch  = false;
 bool bDoorOpenUpdate = false;
 
 bool bDaylight = false;
@@ -110,8 +109,9 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     }
 
     if (digitalRead(iPinDoor) == eDoorOpenCal) {
-        bDoorLED  = true;
-        bDoorOpen = true;
+        bDoorLED       = true;
+        bDoorOpen      = true;
+        bDoorOpenLatch = true;
 
         if (CntDoorOpen < CntDoorOpenBeepDelay) {
             // Count up until beep delay expires
@@ -169,11 +169,9 @@ void loop() {
         }
     }
 
-    if ((bLightsTurnedOff) || (bDoorOpen != bDoorOpenPrev) || (bMotion != bMotionPrev) ||
+    if ((bLightsTurnedOff) || (bDoorOpenLatch != bDoorOpenUpdate) || (bMotion != bMotionUpdate) ||
         (CntLoops >= CntLoopPost)) {
-        bUpdate         = true;
-        bDoorOpenUpdate = bDoorOpen;
-        bMotionUpdate   = bMotion;
+        bUpdate = true;
     }
 
 
@@ -192,10 +190,11 @@ void loop() {
             DetermineDaylight();
             UpdateSheets();
             UpdateHomeCenter();
-            bUpdate       = false;
-            bDoorOpenPrev = bDoorOpenUpdate;
-            bMotionPrev   = bMotionUpdate;
-            CntLoops      = 0;
+            bUpdate         = false;
+            bDoorOpenUpdate = bDoorOpenLatch;
+            bDoorOpenLatch  = false;
+            bMotionUpdate   = bMotion;
+            CntLoops        = 0;
         }
     }
 }
@@ -320,7 +319,8 @@ void DetermineDaylight() {
 
     if (bUpdateSunriseSunset) {
 
-        String strRequest = "http://api.sunrise-sunset.org/json?lat=42.391&lng=-83.779&formatted=0";
+        String strRequest =
+                "http://api.sunrise-sunset.org/json?lat=42.391&lng=-83.779&formatted=0";
         String strReturn;
         int    httpCode = GetHTTP_String(&strRequest, &strReturn);
 
@@ -411,7 +411,7 @@ void UpdateSheets() {
     GetHTTP_String(&s, &strReturn);
     s = ifttt_server + ifttt_action1 + strCellLight2 + String(CntLightIntensity2);
     GetHTTP_String(&s, &strReturn);
-    s = ifttt_server + ifttt_action1 + strCellDoor + String(bDoorOpen);
+    s = ifttt_server + ifttt_action1 + strCellDoor + String(bDoorOpenLatch);
     GetHTTP_String(&s, &strReturn);
     s = ifttt_server + ifttt_action1 + strCellMotion + String(bMotion);
     GetHTTP_String(&s, &strReturn);
@@ -424,8 +424,8 @@ void UpdateSheets() {
             "&value2=" + String(CntLightIntensity1) + "&value3=" + String(CntLightIntensity2);
     GetHTTP_String(&s, &strReturn);
 
-    s = ifttt_server + ifttt_action3 + "?value1=" + String(bDoorOpen) + "&value2=" + String(T_DHT) +
-            "&value3=" + String(PctHumidity);
+    s = ifttt_server + ifttt_action3 + "?value1=" + String(bDoorOpenLatch) +
+            "&value2=" + String(T_DHT) + "&value3=" + String(PctHumidity);
     GetHTTP_String(&s, &strReturn);
 }
 
