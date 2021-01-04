@@ -14,7 +14,6 @@
 
 #include "HTTPSRedirect.h"
 #include "DebugMacros.h"
-// #include <WiFiClientSecure.h>
 
 
 extern "C" {
@@ -216,7 +215,7 @@ void loop() {
     }
 
 
-    if (bUpdate && WiFi.status() != WL_CONNECTED) {
+    if (WiFi.status() != WL_CONNECTED) {
         ConnectToWiFi();
     }
 
