@@ -32,4 +32,5 @@
 *.app
 
 # Shibata
-ScriptConfig.h
+WifiConfig.h
+SheetConfig.h

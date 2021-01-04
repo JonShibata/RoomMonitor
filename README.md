@@ -1,10 +1,22 @@
 Home Automation Arduino
 
 
-# Network_Info.h
+# WifiConfig.h
 
-const char *ssid     = "";
+const char *ssid     = "WIFI_NAME";
 
-const char *password = "";
+const char *password = "PASSWORD";
 
-const char *host     = ""; // ip address of the home center
+const char fingerprint_request[] PROGMEM =
+        "XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX";
+
+
+
+# SheetConfig.h
+
+
+String sheet_id = "abdefghijklmnopqrstuvwxyz";
+
+
+
+

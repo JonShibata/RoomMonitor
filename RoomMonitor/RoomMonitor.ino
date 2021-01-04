@@ -1,15 +1,36 @@
 
-#include <DHT.h>
 #include "ScriptConfig.h"
+#include "SheetConfig.h"
+#include "WifiConfig.h"
+
 #include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
+#include <ESP8266mDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <DHT_U.h>
+
+#include "HTTPSRedirect.h"
+#include "DebugMacros.h"
+// #include <WiFiClientSecure.h>
+
 
 extern "C" {
 #include "user_interface.h"
 }
 
 
+// HTTPS Redirect -----------------------------------------------------
+
+const int httpsPort = 443;  // HTTPS = 443 and HTTP = 80
+
+HTTPSRedirect* client = nullptr;
+
+
 // TODO: Update IFTTT for door state change and lights on / off at night
+// TODO: replace delays with timers, check results after timer expire
 
 
 // Define pin locations
@@ -27,10 +48,11 @@ extern "C" {
 
 
 // Configure DHT
-DHT dht(iPinDHT, eTypeDHT);
+DHT_Unified dht(iPinDHT, eTypeDHT);
 
 
-bool bBeep = false;
+bool bBeep        = false;
+bool bBeepEnabled = true;
 
 bool bMotion       = false;
 bool bMotionUpdate = false;
@@ -39,46 +61,47 @@ bool bDoorOpen       = false;
 bool bDoorOpenLatch  = false;
 bool bDoorOpenUpdate = false;
 
-bool bDaylight = false;
+bool bDaylight         = false;
+bool bLightAlert       = false;
+bool bLightAlertUpdate = false;
 
-bool bUpdate = true;
+
+bool bUpdate           = false;
+bool bUpdatePrev       = false;
+bool bUpdateTempCmpt   = false;
+bool bUpdateHumCmpt    = false;
+bool bUpdateLightsCmpt = false;
 
 int CntDoorOpen = 0;
 
-int CntLoops = 0;
+int CntLoops    = 0;
+int CntWifiFail = 0;
 
-int CntLightIntensity1     = 0;
-int CntLightIntensity1Prev = 0;
-int CntLightIntensity2     = 0;
-int CntLightIntensity2Prev = 0;
+int CntLightIntensity1 = 0;
+int CntLightIntensity2 = 0;
 
 int CntMotionTimer = 0;
 
 float PctHumidity = 0.0F;
 float T_DHT       = 0.0F;
 
-float tSunrise;
-float tSunset;
-
-unsigned long ulTime = ULONG_LONG_MAX;
+unsigned long tReadLightsStart  = 0UL;
+unsigned long tWiFiConnectStart = 0UL;
 
 os_timer_t myTimer;
 
-//
-//
-// declare reset function at address 0
-void (*resetFunc)(void) = 0;
 
-//
-//
-// Setup function called on boot
+sensors_event_t EventTemperature;
+sensors_event_t EventHumidity;
+
+
 void setup() {
-
     Serial.begin(115200);
+
+    dht.begin();
 
     pinMode(iPinDoor, INPUT_PULLUP);
     pinMode(iPinMotion, INPUT);
-    pinMode(iPinDHT, INPUT_PULLUP);
 
     pinMode(iPinLightD1, OUTPUT);
     pinMode(iPinLightD2, OUTPUT);
@@ -91,9 +114,8 @@ void setup() {
 
     digitalWrite(iPinLED_Motion, true);  // set to off (low side drive)
     digitalWrite(iPinLED_Door, false);
-
-    ConnectToWiFi();
 }
+
 
 //
 //
@@ -104,15 +126,18 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     bool bDoorLED;
     bool bMotionLED;
 
+    // CntLoopsPost = number of seconds before making a new post
     if (CntLoops < CntLoopPost) {
         CntLoops++;
     }
 
+    // eDoorOpenCal = DIO state when door is open (depends on sensor type)
     if (digitalRead(iPinDoor) == eDoorOpenCal) {
         bDoorLED       = true;
         bDoorOpen      = true;
         bDoorOpenLatch = true;
 
+        // CntDoorOpenBeepDelay = number of seconds when door is open before beeping starts
         if (CntDoorOpen < CntDoorOpenBeepDelay) {
             // Count up until beep delay expires
             CntDoorOpen++;
@@ -137,6 +162,7 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
         CntMotionTimer = 0;
     } else {
         bMotionLED = false;
+        // CntMotionDelay = seconds to latch motion detection
         if (CntMotionTimer < CntMotionDelay) {
             CntMotionTimer++;
         } else {
@@ -145,9 +171,22 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     }
     digitalWrite(iPinLED_Motion, !bMotionLED);  // set LED (low side drive)
 
-    Serial.print(" bDoorOpen = " + String(bDoorOpen));
-    Serial.print(" bBeep = " + String(bBeep));
-    Serial.println(" CntLoops = " + String(CntLoops));
+    // Serial.printf(" bDoorOpen = %d", bDoorOpen);
+    // Serial.printf(" bBeep = %d", bBeep);
+    Serial.printf(" CntLoops = %d", CntLoops);
+    Serial.printf(" bUpdate = %d", bUpdate);
+
+    Serial.printf(" bUpdateLightsCmpt = %d", bUpdateLightsCmpt);
+    Serial.printf(" bUpdateTempCmpt = %d", bUpdateTempCmpt);
+    Serial.printf(" bUpdateHumCmpt = %d\n", bUpdateHumCmpt);
+
+
+    Serial.printf(" bLightAlert = %d", bLightAlert);
+    Serial.printf(" bLightAlertUpdate = %d", bLightAlertUpdate);
+    Serial.printf(" bDoorOpenLatch = %d", bDoorOpenLatch);
+    Serial.printf(" bDoorOpenUpdate = %d", bDoorOpenUpdate);
+    Serial.printf(" bMotion = %d", bMotion);
+    Serial.printf(" bMotionUpdate = %d\n\n", bMotionUpdate);
 }
 
 
@@ -156,47 +195,52 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
 // Main loop to evaluate the need to post an update and reset the values
 
 void loop() {
-    bool bReadLights      = true;
-    bool bLightsTurnedOff = false;
 
-    if (!bDaylight) {
-        if (CntLightIntensity1Prev > CntLightOnThresh ||
-            CntLightIntensity2Prev > CntLightOnThresh) {
-            ReadLights();
-            bReadLights = false;
-            if (CntLightIntensity1 < CntLightOnThresh && CntLightIntensity2 < CntLightOnThresh)
-                bLightsTurnedOff = true;
-        }
-    }
 
-    if ((bLightsTurnedOff) || (bDoorOpenLatch != bDoorOpenUpdate) || (bMotion != bMotionUpdate) ||
-        (CntLoops >= CntLoopPost)) {
-        bUpdate = true;
+    bLightAlert =
+            (!bDaylight && !bMotion &&
+             (CntLightIntensity1 > CntLightOnThresh || CntLightIntensity2 > CntLightOnThresh));
+
+    bUpdate =
+            ((bLightAlert != bLightAlertUpdate) || (bDoorOpenLatch != bDoorOpenUpdate) ||
+             (bMotion != bMotionUpdate) || (CntLoops >= CntLoopPost));
+
+
+    if (bUpdate || bLightAlert) {
+        ReadLights();
     }
 
 
     if (bUpdate) {
-
         Read_DHT();
-        if (bReadLights) {
-            ReadLights();
-        }
-
-        if (WiFi.status() != WL_CONNECTED) {
-            ConnectToWiFi();
-        }
-
-        if (WiFi.status() == WL_CONNECTED) {
-            DetermineDaylight();
-            UpdateSheets();
-            UpdateHomeCenter();
-            bUpdate         = false;
-            bDoorOpenUpdate = bDoorOpenLatch;
-            bDoorOpenLatch  = false;
-            bMotionUpdate   = bMotion;
-            CntLoops        = 0;
-        }
     }
+
+
+    if (bUpdate && WiFi.status() != WL_CONNECTED) {
+        ConnectToWiFi();
+    }
+
+
+    if (bUpdate && bUpdateLightsCmpt && bUpdateTempCmpt && bUpdateHumCmpt &&
+        WiFi.status() == WL_CONNECTED) {
+
+        UpdateSheets();
+        UpdateHomeCenter();
+        bDoorOpenLatch    = false;
+        bDoorOpenUpdate   = bDoorOpenLatch;
+        bMotionUpdate     = bMotion;
+        bLightAlertUpdate = bLightAlert;
+        bUpdate           = false;
+        CntLoops          = 0;
+    }
+
+    bUpdatePrev = bUpdate;
+
+
+    if (CntWifiFail > CntWifiFailThresh) {
+        ESP.restart();
+    }
+    ArduinoOTA.handle();
 }
 
 
@@ -205,36 +249,25 @@ void loop() {
 // Function to read temperature and humidity from the DHT
 
 void Read_DHT() {
-    int CntTempReads     = 0;
-    int CntHumidityReads = 0;
 
-    T_DHT = -99.0F;
-    while ((isnan(T_DHT) || T_DHT < -90.0F) && (CntTempReads < 5)) {
-        // Read temperature as Fahrenheit (isFahrenheit = true)
-        T_DHT = dht.readTemperature(true);
-        delay(500);
-        CntTempReads++;
+    if (bUpdatePrev == false) {
+        bUpdateTempCmpt = false;
+        bUpdateHumCmpt  = false;
+        T_DHT           = -99.0F;
+        PctHumidity     = -99.0F;
+        dht.temperature().getEvent(&EventTemperature);
+        dht.humidity().getEvent(&EventHumidity);
     }
 
-    if (isnan(T_DHT) || T_DHT < -90.0F) {
-        T_DHT = 0.0F;
+    if (!isnan(EventTemperature.temperature) && EventTemperature.temperature > -90.0) {
+        T_DHT           = EventTemperature.temperature;
+        bUpdateTempCmpt = true;
     }
 
-    Serial.println(" T_DHT       = " + String(T_DHT));
-
-    PctHumidity = -99.0F;
-    while ((isnan(PctHumidity) || PctHumidity < -90.0F) && (CntHumidityReads < 5)) {
-        // Reading temperature or humidity takes about 250 ms
-        PctHumidity = dht.readHumidity();
-        delay(500);
-        CntHumidityReads++;
+    if (!isnan(EventHumidity.relative_humidity) && EventHumidity.relative_humidity > -90.0) {
+        PctHumidity    = EventHumidity.relative_humidity;
+        bUpdateHumCmpt = true;
     }
-
-    if (isnan(PctHumidity) || PctHumidity < -90.0F) {
-        PctHumidity = 0.0F;
-    }
-
-    Serial.println(" PctHumidity = " + String(PctHumidity));
 }
 
 
@@ -245,26 +278,28 @@ void Read_DHT() {
 void ReadLights() {
     // Multiplexed to analog input
     // Digital outputs used to control which sensor is reporting
-    digitalWrite(iPinLightD1, HIGH);
-    delay(500);
 
-    CntLightIntensity1 = analogRead(A0);
-    delay(200);
+    unsigned long dtReadLights;
 
-    digitalWrite(iPinLightD1, LOW);
-    digitalWrite(iPinLightD2, HIGH);
-    delay(500);
+    dtReadLights = millis() - tReadLightsStart;
 
-    CntLightIntensity2 = analogRead(A0);
-    delay(200);
+    if (bUpdatePrev == false || (dtReadLights > 2000)) {
+        tReadLightsStart  = millis();
+        dtReadLights      = 0;
+        bUpdateLightsCmpt = false;
+        digitalWrite(iPinLightD1, HIGH);
+    }
 
-    digitalWrite(iPinLightD2, LOW);
-
-    CntLightIntensity1Prev = CntLightIntensity1;
-    CntLightIntensity2Prev = CntLightIntensity2;
-
-    Serial.println(" Light1      = " + String(CntLightIntensity1));
-    Serial.println(" Light2      = " + String(CntLightIntensity2));
+    if (dtReadLights < 700) {
+        CntLightIntensity1 = analogRead(A0);
+    } else if (dtReadLights < 1400) {
+        digitalWrite(iPinLightD1, LOW);
+        digitalWrite(iPinLightD2, HIGH);
+        CntLightIntensity2 = analogRead(A0);
+    } else {
+        bUpdateLightsCmpt = true;
+        digitalWrite(iPinLightD2, LOW);
+    }
 }
 
 
@@ -273,16 +308,18 @@ void ReadLights() {
 // Connect to Wifi
 
 void ConnectToWiFi() {
+
     int CntWifiRetries = 0;
     int intWiFiCode;
 
     WiFi.mode(WIFI_STA);
     intWiFiCode = WiFi.begin(ssid, password);
+    WiFi.hostname(esp_hostname);
 
     Serial.println("");
     Serial.println("Connecting to WiFi");
     Serial.println("");
-    Serial.println("WiFi.begin = " + String(intWiFiCode));
+    Serial.printf("WiFi.begin = %d\n", intWiFiCode);
 
     while ((WiFi.status() != WL_CONNECTED) && (CntWifiRetries < CntWifiRetryAbort)) {
         CntWifiRetries++;
@@ -296,137 +333,154 @@ void ConnectToWiFi() {
     } else {
         Serial.println("");
         Serial.println("WiFi Connected");
+
+
+        // Port defaults to 8266
+        // ArduinoOTA.setPort(8266);
+
+        // Hostname defaults to esp8266-[ChipID]
+        ArduinoOTA.setHostname(esp_hostname);
+
+        // No authentication by default
+        // ArduinoOTA.setPassword("admin");
+
+        // Password can be set with it's md5 value as well
+        // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+        // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+
+        ArduinoOTA.onStart([]() {
+            String type;
+            if (ArduinoOTA.getCommand() == U_FLASH) {
+                type = "sketch";
+            } else {  // U_FS
+                type = "filesystem";
+            }
+
+            // NOTE: if updating FS this would be the place to unmount FS using FS.end()
+            Serial.println("Start updating " + type);
+        });
+        ArduinoOTA.onEnd([]() { Serial.println("\nEnd"); });
+        ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+            Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+        });
+        ArduinoOTA.onError([](ota_error_t error) {
+            Serial.printf("Error[%u]: ", error);
+            if (error == OTA_AUTH_ERROR) {
+                Serial.println("Auth Failed");
+            } else if (error == OTA_BEGIN_ERROR) {
+                Serial.println("Begin Failed");
+            } else if (error == OTA_CONNECT_ERROR) {
+                Serial.println("Connect Failed");
+            } else if (error == OTA_RECEIVE_ERROR) {
+                Serial.println("Receive Failed");
+            } else if (error == OTA_END_ERROR) {
+                Serial.println("End Failed");
+            }
+        });
+        ArduinoOTA.begin();
     }
 }
 
 
-void DetermineDaylight() {
-    String strSunrise, strSunset, strDateTime;
-    // String* ptrUpdateTime;
+void GetHTTPS_String(String* strURL, String* strReturn) {
 
-    bool bUpdateSunriseSunset = false;
-    // if millis has wrapped around or if 1 day has past then update
-    if (millis() < 8640000) {
-        if (ulTime > 86400000) {
-            bUpdateSunriseSunset = true;
-        }
-    } else {
-        if (ulTime < millis() - 86400000) {
-            bUpdateSunriseSunset = true;
-        }
+    // Use HTTPSRedirect class to create a new TLS connection
+    client = new HTTPSRedirect(httpsPort);
+    client->setInsecure();
+    // client->setPrintResponseBody(true);
+    // client->setContentTypeHeader("application/json");
+
+    Serial.print("Connecting to ");
+    Serial.println(host);
+
+    // Try to connect for a maximum of 5 times
+    bool flag = false;
+
+    for (int i = 0; i < 5; i++) {
+        int retval = client->connect(host, httpsPort);
+        if (retval == 1) {
+            flag = true;
+            break;
+        } else
+            Serial.println("Connection failed. Retrying...");
     }
 
+    if (flag) {
 
-    if (bUpdateSunriseSunset) {
+        client->GET(*strURL, host);
 
-        String strRequest =
-                "http://api.sunrise-sunset.org/json?lat=42.391&lng=-83.779&formatted=0";
-        String strReturn;
-        int    httpCode = GetHTTP_String(&strRequest, &strReturn);
-
-        if (httpCode > 0) {
-            ulTime   = millis();
-            tSunrise = GetDate_Hour_Min(strReturn, "civil_twilight_begin", &strSunrise);
-            tSunset  = GetDate_Hour_Min(strReturn, "civil_twilight_end", &strSunset);
-        }
-    }
-
-
-    String strRequest = "http://worldtimeapi.org/api/timezone/America/Detroit";
-    String strReturn;
-    int    httpCode = GetHTTP_String(&strRequest, &strReturn);
-
-    if (httpCode > 0) {
-        String strSearch = "utc_datetime";
-
-        float tNow = GetDate_Hour_Min(strReturn, strSearch, &strDateTime);
-
-        if (tSunset > tSunrise) {
-            bDaylight = (tSunrise < tNow) && (tNow < tSunset);
-        } else {
-            bDaylight = (tSunrise < tNow) || (tNow < tSunset);
-        }
-    }
-}
-
-float GetDate_Hour_Min(String strMain, String strSearch, String* strDateTime) {
-
-    int lenSearchStr = strSearch.length() + 3;  // 3 for ":"
-
-    int iStart   = strMain.indexOf(strSearch) + lenSearchStr;
-    *strDateTime = strMain.substring(iStart, iStart + 19);
-    Serial.println(strSearch + " - " + *strDateTime);
-
-    float fltHoursTemp   = strMain.substring(iStart + 11, iStart + 13).toFloat();
-    float fltMinutesTemp = strMain.substring(iStart + 14, iStart + 16).toFloat();
-
-    return (fltHoursTemp + (fltMinutesTemp / 60.0F));
-}
-
-int GetHTTP_String(String* strURL, String* strReturn) {
-
-    HTTPClient http;
-
-    http.begin(*strURL);
-    int httpCode = http.GET();
-    Serial.println("httpCode=" + String(httpCode));
-
-    if (httpCode > 0) {
-        *strReturn = http.getString();
+        *strReturn = client->getResponseBody();
         Serial.println(*strReturn);
+
+    } else {
+
+        Serial.print("Could not connect to server: ");
+        Serial.println(host);
+        Serial.println("Exiting...");
     }
 
-    http.end();
-    return httpCode;
+    delete client;
+    client = nullptr;
 }
 
 
-void FindIntInString(String strMain, String strFind, int* ptrData) {
-    int iStart = strMain.indexOf(strFind);
+void FindBoolInString(String* strMain, String strFind, bool* return_val) {
+
+    int iStart = strMain->indexOf(strFind);
+
     if (iStart != -1) {
-        int iEnd    = strMain.indexOf(",", iStart);
+        int iEnd    = strMain->indexOf(",", iStart);
         int lenFind = (int)strFind.length();
-        *ptrData    = strMain.substring(iStart + lenFind, iEnd).toInt();
-        Serial.println(strFind + String(*ptrData));
+
+        String return_str = strMain->substring(iStart + lenFind, iEnd);
+
+        Serial.println(strFind + return_str);
+
+        *return_val = (bool)return_str;
     }
 }
 
+void FindIntInString(String* strMain, String strFind, int* return_val) {
 
-void FindBoolInString(String strMain, String strFind, bool* ptrData) {
-    int iStart = strMain.indexOf(strFind);
+    int iStart = strMain->indexOf(strFind);
+
     if (iStart != -1) {
+        int iEnd    = strMain->indexOf(",", iStart);
         int lenFind = (int)strFind.length();
-        int iData   = iStart + lenFind;
-        *ptrData    = (bool)strMain.substring(iData, iData + 1).toInt();
-        Serial.println(strFind + String(*ptrData));
+
+        String return_str = strMain->substring(iStart + lenFind, iEnd);
+
+        Serial.println(strFind + return_str);
+
+        *return_val = return_str.toInt();
     }
 }
-
 
 void UpdateSheets() {
-    String s;
+
+    String url_string;
     String strReturn;
 
-    s = ifttt_server + ifttt_action1 + strCellLight1 + String(CntLightIntensity1);
-    GetHTTP_String(&s, &strReturn);
-    s = ifttt_server + ifttt_action1 + strCellLight2 + String(CntLightIntensity2);
-    GetHTTP_String(&s, &strReturn);
-    s = ifttt_server + ifttt_action1 + strCellDoor + String(bDoorOpenLatch);
-    GetHTTP_String(&s, &strReturn);
-    s = ifttt_server + ifttt_action1 + strCellMotion + String(bMotion);
-    GetHTTP_String(&s, &strReturn);
-    s = ifttt_server + ifttt_action1 + strCellTemp + String(T_DHT);
-    GetHTTP_String(&s, &strReturn);
-    s = ifttt_server + ifttt_action1 + strCellHum + String(PctHumidity);
-    GetHTTP_String(&s, &strReturn);
+    url_string = "/macros/s/" + sheet_id + "/exec?room_name=" + room_name +
+            "&Door=" + String(bDoorOpenLatch) + "&Temperature=" + String(T_DHT) +
+            "&Humidity=" + String(PctHumidity) + "&Motion=" + String(bMotion) +
+            "&Light1=" + String(CntLightIntensity1) + "&Light2=" + String(CntLightIntensity2);
 
-    s = ifttt_server + ifttt_action2 + "?value1=" + String(bMotion) +
-            "&value2=" + String(CntLightIntensity1) + "&value3=" + String(CntLightIntensity2);
-    GetHTTP_String(&s, &strReturn);
+    Serial.println(url_string);
+    Serial.println();
 
-    s = ifttt_server + ifttt_action3 + "?value1=" + String(bDoorOpenLatch) +
-            "&value2=" + String(T_DHT) + "&value3=" + String(PctHumidity);
-    GetHTTP_String(&s, &strReturn);
+    GetHTTPS_String(&url_string, &strReturn);
+
+    FindBoolInString(&strReturn, "bBeepEnabled\":\"", &bBeepEnabled);
+    FindBoolInString(&strReturn, "bDaylight\":\"", &bDaylight);
+
+    FindIntInString(&strReturn, "CntDoorOpenBeepDelay\":\"", &CntDoorOpenBeepDelay);
+    FindIntInString(&strReturn, "CntLightOnThresh\":\"", &CntLightOnThresh);
+    FindIntInString(&strReturn, "CntLoopPost\":\"", &CntLoopPost);
+    FindIntInString(&strReturn, "CntMotionDelay\":\"", &CntMotionDelay);
+    FindIntInString(&strReturn, "CntWifiRetryAbort\":\"", &CntWifiRetryAbort);
+
+    FindBoolInString(&strReturn, "eDoorOpenCal\":\"", &eDoorOpenCal);
 }
 
 
@@ -436,25 +490,22 @@ void UpdateSheets() {
 
 void UpdateHomeCenter() {
 
-    String s = "http://" + host;
-    s += "/bHomeMonitor=1&strRoom=" + strRoom + "&";
-    s += "bDoorOpen=" + String(bDoorOpen) + "&";
-    s += "bMotion=" + String(bMotion) + "&";
-    s += "CntLightIntensity1=" + String(CntLightIntensity1) + "&";
-    s += "CntLightIntensity2=" + String(CntLightIntensity2) + "&";
-    s += "T_DHT=" + String(T_DHT) + "&";
-    s += "PctHumidity=" + String(PctHumidity) + "&";
-    s += "bDaylight=" + String(bDaylight) + "&";
+    // TODO: push only beep request since information flow will now be sheet->monitor->center
 
-    String strReturn;
-    GetHTTP_String(&s, &strReturn);
+    // String s = "http://" + host;
+    // s += "/bHomeMonitor=1&strRoom=" + strRoom + "&";
+    // s += "bDoorOpen=" + String(bDoorOpen) + "&";
+    // s += "bMotion=" + String(bMotion) + "&";
+    // s += "CntLightIntensity1=" + String(CntLightIntensity1) + "&";
+    // s += "CntLightIntensity2=" + String(CntLightIntensity2) + "&";
+    // s += "T_DHT=" + String(T_DHT) + "&";
+    // s += "PctHumidity=" + String(PctHumidity) + "&";
+    // s += "bDaylight=" + String(bDaylight) + "&";
 
-    Serial.println(s);
-    Serial.println("strReturn:");
-    Serial.println(strReturn);
+    // String strReturn;
+    // GetHTTP_String(&s, &strReturn);
 
-    FindIntInString(strReturn, "CntDoorOpenBeepDelay\":\"", &CntDoorOpenBeepDelay);
-    FindIntInString(strReturn, "CntLightOnThresh\":\"", &CntLightOnThresh);
-    FindIntInString(strReturn, "CntMotionDelay\":\"", &CntMotionDelay);
-    FindIntInString(strReturn, "CntWifiRetryAbort\":\"", &CntWifiRetryAbort);
+    // Serial.println(s);
+    // Serial.println("strReturn:");
+    // Serial.println(strReturn);
 }
