@@ -18,8 +18,6 @@
 #include <DHT_U.h>
 
 
-
-
 extern "C" {
 #include "user_interface.h"
 }
@@ -65,6 +63,7 @@ bool bDoorOpenLatch  = false;
 bool bDoorOpenUpdate = false;
 
 bool bDaylight         = false;
+bool bDoorAlert        = false;
 bool bLightAlert       = false;
 bool bLightAlertUpdate = false;
 
@@ -204,6 +203,8 @@ void loop() {
     bLightAlert =
             (!bDaylight && !bMotion &&
              (CntLightIntensity1 > CntLightOnThresh || CntLightIntensity2 > CntLightOnThresh));
+
+    bDoorAlert = !bMotion && bDoorOpen;
 
     bUpdate =
             ((bLightAlert != bLightAlertUpdate) || (bDoorOpenLatch != bDoorOpenUpdate) ||
@@ -486,7 +487,8 @@ void UpdateSheets() {
     url_string = "/macros/s/" + sheet_id + "/exec?room_name=" + room_name +
             "&Door=" + String(bDoorOpenLatch) + "&Temperature=" + String(T_DHT) +
             "&Humidity=" + String(PctHumidity) + "&Motion=" + String(bMotion) +
-            "&Light1=" + String(CntLightIntensity1) + "&Light2=" + String(CntLightIntensity2);
+            "&Light1=" + String(CntLightIntensity1) + "&Light2= " + String(CntLightIntensity2) +
+            "&LightAlert=" + String(bLightAlert) + "&DoorAlert=" + String(bDoorAlert) + "&";
 
     Serial.println(url_string);
     Serial.println();
@@ -513,8 +515,8 @@ void UpdateSheets() {
 void UpdateHomeCenter() {
 
     String s = "http://" + HomeAlertIP;
-    s += "/bDoorAlert" + String(room_name) + "=" + String(bDoorOpen) + "&";
-    s += "bLightAlert"+ String(room_name) + "=" + String(bLightAlert) + "&";
+    s += "/bDoorAlert" + String(room_name) + "=" + String(bDoorAlert) + "&";
+    s += "bLightAlert" + String(room_name) + "=" + String(bLightAlert) + "&";
 
     String strReturn;
     GetHTTP_String(&s, &strReturn);

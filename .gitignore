@@ -34,3 +34,4 @@
 # Shibata
 WifiConfig.h
 SheetConfig.h
+build_outputs/
