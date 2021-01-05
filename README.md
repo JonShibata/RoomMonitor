@@ -1,11 +1,24 @@
-Home Automation Arduino
+# RoomMonitor
+
+
+This arduino repo is configured to work with the following Adafruit libraries
+
+Adafruit Unified Sensor Driver **1.1.4**
+https://github.com/adafruit/Adafruit_Sensor
+
+
+
+DHT sensor library **1.4.1**
+https://github.com/adafruit/DHT-sensor-library
+
+
 
 
 # WifiConfig.h
 
 const char *ssid     = "WIFI_NAME";
 
-const char *password = "PASSWORD";
+const char *password = "WIFI_PASSWORD";
 
 
 
