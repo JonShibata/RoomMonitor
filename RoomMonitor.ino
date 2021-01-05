@@ -487,7 +487,7 @@ void UpdateSheets() {
     url_string = "/macros/s/" + sheet_id + "/exec?room_name=" + room_name +
             "&Door=" + String(bDoorOpenLatch) + "&Temperature=" + String(T_DHT) +
             "&Humidity=" + String(PctHumidity) + "&Motion=" + String(bMotion) +
-            "&Light1=" + String(CntLightIntensity1) + "&Light2= " + String(CntLightIntensity2) +
+            "&Light1=" + String(CntLightIntensity1) + "&Light2=" + String(CntLightIntensity2) +
             "&LightAlert=" + String(bLightAlert) + "&DoorAlert=" + String(bDoorAlert) + "&";
 
     Serial.println(url_string);
