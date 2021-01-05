@@ -64,7 +64,11 @@ bool bDoorOpenUpdate = false;
 
 bool bDaylight         = false;
 bool bDoorAlert        = false;
+bool bDoorAlertPrev    = false;
+bool bDoorAlertTrig    = false;
 bool bLightAlert       = false;
+bool bLightAlertPrev   = false;
+bool bLightAlertTrig   = false;
 bool bLightAlertUpdate = false;
 
 
@@ -204,7 +208,13 @@ void loop() {
             (!bDaylight && !bMotion &&
              (CntLightIntensity1 > CntLightOnThresh || CntLightIntensity2 > CntLightOnThresh));
 
+    bLightAlertTrig = bLightAlert && !bLightAlertPrev;
+    bLightAlertPrev = bLightAlert;
+
     bDoorAlert = !bMotion && bDoorOpen;
+
+    bDoorAlertTrig = bDoorAlert && !bDoorAlertPrev;
+    bDoorAlertPrev = bDoorAlert;
 
     bUpdate =
             ((bLightAlert != bLightAlertUpdate) || (bDoorOpenLatch != bDoorOpenUpdate) ||
@@ -488,7 +498,9 @@ void UpdateSheets() {
             "&Door=" + String(bDoorOpenLatch) + "&Temperature=" + String(T_DHT) +
             "&Humidity=" + String(PctHumidity) + "&Motion=" + String(bMotion) +
             "&Light1=" + String(CntLightIntensity1) + "&Light2=" + String(CntLightIntensity2) +
-            "&LightAlert=" + String(bLightAlert) + "&DoorAlert=" + String(bDoorAlert) + "&";
+            "&LightAlert=" + String(bLightAlert) + "&DoorAlert=" + String(bDoorAlert) +
+            "&LightAlertTrig=" + String(bLightAlertTrig) +
+            "&DoorAlertTrig=" + String(bDoorAlertTrig) + "&Daylight=" + String(bDaylight) + "&";
 
     Serial.println(url_string);
     Serial.println();
