@@ -8,12 +8,16 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 
+#include <ESP8266HTTPClient.h>
+
+#include "HTTPSRedirect.h"
+#include "DebugMacros.h"
+
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
 #include <DHT_U.h>
 
-#include "HTTPSRedirect.h"
-#include "DebugMacros.h"
+
 
 
 extern "C" {
@@ -314,7 +318,7 @@ void ConnectToWiFi() {
 
     WiFi.mode(WIFI_STA);
     intWiFiCode = WiFi.begin(ssid, password);
-    WiFi.hostname(esp_hostname);
+    WiFi.hostname(room_name);
 
     Serial.println("");
     Serial.println("Connecting to WiFi");
@@ -339,7 +343,7 @@ void ConnectToWiFi() {
         // ArduinoOTA.setPort(8266);
 
         // Hostname defaults to esp8266-[ChipID]
-        ArduinoOTA.setHostname(esp_hostname);
+        ArduinoOTA.setHostname(room_name);
 
         // No authentication by default
         // ArduinoOTA.setPassword("admin");
@@ -379,6 +383,24 @@ void ConnectToWiFi() {
         });
         ArduinoOTA.begin();
     }
+}
+
+
+int GetHTTP_String(String* strURL, String* strReturn) {
+
+    HTTPClient http;
+
+    http.begin(*strURL);
+    int httpCode = http.GET();
+    Serial.println("httpCode=" + String(httpCode));
+
+    if (httpCode > 0) {
+        *strReturn = http.getString();
+        Serial.println(*strReturn);
+    }
+
+    http.end();
+    return httpCode;
 }
 
 
@@ -436,7 +458,7 @@ void FindBoolInString(String* strMain, String strFind, bool* return_val) {
 
         Serial.println(strFind + return_str);
 
-        *return_val = (bool)return_str;
+        *return_val = (bool)return_str.toInt();
     }
 }
 
@@ -490,22 +512,14 @@ void UpdateSheets() {
 
 void UpdateHomeCenter() {
 
-    // TODO: push only beep request since information flow will now be sheet->monitor->center
+    String s = "http://" + HomeAlertIP;
+    s += "/bDoorAlert" + String(room_name) + "=" + String(bDoorOpen) + "&";
+    s += "bLightAlert"+ String(room_name) + "=" + String(bLightAlert) + "&";
 
-    // String s = "http://" + host;
-    // s += "/bHomeMonitor=1&strRoom=" + strRoom + "&";
-    // s += "bDoorOpen=" + String(bDoorOpen) + "&";
-    // s += "bMotion=" + String(bMotion) + "&";
-    // s += "CntLightIntensity1=" + String(CntLightIntensity1) + "&";
-    // s += "CntLightIntensity2=" + String(CntLightIntensity2) + "&";
-    // s += "T_DHT=" + String(T_DHT) + "&";
-    // s += "PctHumidity=" + String(PctHumidity) + "&";
-    // s += "bDaylight=" + String(bDaylight) + "&";
+    String strReturn;
+    GetHTTP_String(&s, &strReturn);
 
-    // String strReturn;
-    // GetHTTP_String(&s, &strReturn);
-
-    // Serial.println(s);
-    // Serial.println("strReturn:");
-    // Serial.println(strReturn);
+    Serial.println(s);
+    Serial.println("strReturn:");
+    Serial.println(strReturn);
 }
