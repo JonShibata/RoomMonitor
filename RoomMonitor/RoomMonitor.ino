@@ -173,6 +173,7 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     // Serial.printf(" bDoorOpen = %d", bDoorOpen);
     // Serial.printf(" bBeep = %d", bBeep);
     Serial.printf(" CntLoops = %d", CntLoops);
+    Serial.printf(" CntLoopPost = %d", CntLoopPost);
     Serial.printf(" bUpdate = %d", bUpdate);
 
     Serial.printf(" bUpdateLightsCmpt = %d", bUpdateLightsCmpt);
@@ -470,16 +471,16 @@ void UpdateSheets() {
 
     GetHTTPS_String(&url_string, &strReturn);
 
-    FindBoolInString(&strReturn, "bBeepEnabled\":\"", &bBeepEnabled);
-    FindBoolInString(&strReturn, "bDaylight\":\"", &bDaylight);
+    FindBoolInString(&strReturn, "bBeepEnabled\":", &bBeepEnabled);
+    FindBoolInString(&strReturn, "bDaylight\":", &bDaylight);
 
-    FindIntInString(&strReturn, "CntDoorOpenBeepDelay\":\"", &CntDoorOpenBeepDelay);
-    FindIntInString(&strReturn, "CntLightOnThresh\":\"", &CntLightOnThresh);
-    FindIntInString(&strReturn, "CntLoopPost\":\"", &CntLoopPost);
-    FindIntInString(&strReturn, "CntMotionDelay\":\"", &CntMotionDelay);
-    FindIntInString(&strReturn, "CntWifiRetryAbort\":\"", &CntWifiRetryAbort);
+    FindIntInString(&strReturn, "CntDoorOpenBeepDelay\":", &CntDoorOpenBeepDelay);
+    FindIntInString(&strReturn, "CntLightOnThresh\":", &CntLightOnThresh);
+    FindIntInString(&strReturn, "CntLoopPost\":", &CntLoopPost);
+    FindIntInString(&strReturn, "CntMotionDelay\":", &CntMotionDelay);
+    FindIntInString(&strReturn, "CntWifiRetryAbort\":", &CntWifiRetryAbort);
 
-    FindBoolInString(&strReturn, "eDoorOpenCal\":\"", &eDoorOpenCal);
+    FindBoolInString(&strReturn, "eDoorOpenCal\":", &eDoorOpenCal);
 }
 
 

@@ -3,7 +3,7 @@
 
  #define Basement
 // #define Garage
-//#define Test
+// #define Test
 
 
 
@@ -31,7 +31,7 @@ int  CntLightOnThresh     = 100;
 int  CntMotionDelay       = 300;
 int  CntWifiRetryAbort    = 10;
 int  CntWifiFailThresh    = 10;
-int  CntLoopPost          = 1800;
+int  CntLoopPost          = 30;
 
 
 // String host = "192.168.86.200";  // ip address of the home center
