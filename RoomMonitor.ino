@@ -45,6 +45,16 @@ HTTPSRedirect* client = nullptr;
 #define iPinLightD2 13    // GPIO13: D7
 #define iPinLED_Door 15   // GPIO15: D8
 
+
+// Wiring Info-----------------
+// Door     GND,            D1
+// PIR      GND, Vin (+5V), D2
+// Buzzer   GND,            D3
+// DHT      GND, 3.3V,      D5
+// Light1   GND, A0         D6
+// Light2   GND, A0         D7
+
+
 #define eTypeDHT DHT22  // Select DHT type
 
 
