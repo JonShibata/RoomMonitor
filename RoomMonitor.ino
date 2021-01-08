@@ -71,19 +71,16 @@ bool bMotionUpdate = false;
 bool bDoorOpen       = false;
 bool bDoorOpenLatch  = false;
 bool bDoorOpenUpdate = false;
+bool bDoorAlert      = false;
+bool bDoorAlertTrig  = false;
 
 bool bDaylight         = false;
-bool bDoorAlert        = false;
-bool bDoorAlertPrev    = false;
-bool bDoorAlertTrig    = false;
 bool bLightAlert       = false;
-bool bLightAlertPrev   = false;
 bool bLightAlertTrig   = false;
 bool bLightAlertUpdate = false;
 
-
 bool bUpdate           = false;
-bool bUpdatePrev       = false;
+bool bUpdateTrig       = false;
 bool bUpdateTempCmpt   = false;
 bool bUpdateHumCmpt    = false;
 bool bUpdateLightsCmpt = false;
@@ -213,23 +210,23 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
 
 void loop() {
 
-
     bLightAlert =
             (!bDaylight && !bMotion &&
              (CntLightIntensity1 > CntLightOnThresh || CntLightIntensity2 > CntLightOnThresh));
 
-    bLightAlertTrig = bLightAlert && !bLightAlertPrev;
-    bLightAlertPrev = bLightAlert;
+    bLightAlertTrig = bLightAlert && !bLightAlertUpdate;
+
 
     bDoorAlert = !bMotion && bDoorOpen;
 
-    bDoorAlertTrig = bDoorAlert && !bDoorAlertPrev;
-    bDoorAlertPrev = bDoorAlert;
+    bDoorAlertTrig = bDoorAlert && !bDoorOpenUpdate;
+
 
     bUpdate =
             ((bLightAlert != bLightAlertUpdate) || (bDoorOpenLatch != bDoorOpenUpdate) ||
              (bMotion != bMotionUpdate) || (CntLoops >= CntLoopPost));
 
+    bUpdateTrig = bUpdate && !bUpdate;
 
     if (bUpdate || bLightAlert) {
         ReadLights();
@@ -255,11 +252,8 @@ void loop() {
         bDoorOpenUpdate   = bDoorOpenLatch;
         bMotionUpdate     = bMotion;
         bLightAlertUpdate = bLightAlert;
-        bUpdate           = false;
         CntLoops          = 0;
     }
-
-    bUpdatePrev = bUpdate;
 
 
     if (CntWifiFail > CntWifiFailThresh) {
@@ -275,7 +269,7 @@ void loop() {
 
 void Read_DHT() {
 
-    if (bUpdatePrev == false) {
+    if (bUpdateTrig) {
         bUpdateTempCmpt = false;
         bUpdateHumCmpt  = false;
         T_DHT           = -99.0F;
@@ -305,17 +299,18 @@ void ReadLights() {
     // Digital outputs used to control which sensor is reporting
 
     unsigned long dtReadLights;
+    unsigned long run_time = millis();
 
-    dtReadLights = millis() - tReadLightsStart;
-
-    if (bUpdatePrev == false || (dtReadLights > 2000)) {
-        tReadLightsStart  = millis();
-        dtReadLights      = 0;
+    if (bUpdateTrig || (bLightAlert && bUpdateLightsCmpt)) {
+        tReadLightsStart  = run_time;
         bUpdateLightsCmpt = false;
-        digitalWrite(iPinLightD1, HIGH);
     }
 
+    dtReadLights = run_time - tReadLightsStart;
+
     if (dtReadLights < 700) {
+        digitalWrite(iPinLightD1, HIGH);
+        digitalWrite(iPinLightD2, LOW);
         CntLightIntensity1 = analogRead(A0);
     } else if (dtReadLights < 1400) {
         digitalWrite(iPinLightD1, LOW);
@@ -323,6 +318,7 @@ void ReadLights() {
         CntLightIntensity2 = analogRead(A0);
     } else {
         bUpdateLightsCmpt = true;
+        digitalWrite(iPinLightD1, LOW);
         digitalWrite(iPinLightD2, LOW);
     }
 }
