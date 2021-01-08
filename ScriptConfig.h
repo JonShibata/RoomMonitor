@@ -22,6 +22,8 @@ bool        eDoorOpenCal = true;
 #endif
 
 
+// configurations only used until first connection with google sheet
+// New calibrations are pulled down each time an update is made to the sheet
 
 int CntDoorOpenBeepDelay = 30;
 int CntLightOnThresh     = 100;

@@ -210,6 +210,8 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
 
 void loop() {
 
+    bool bUpdatePrev = bUpdate;
+
     bLightAlert =
             (!bDaylight && !bMotion &&
              (CntLightIntensity1 > CntLightOnThresh || CntLightIntensity2 > CntLightOnThresh));
@@ -226,7 +228,7 @@ void loop() {
             ((bLightAlert != bLightAlertUpdate) || (bDoorOpenLatch != bDoorOpenUpdate) ||
              (bMotion != bMotionUpdate) || (CntLoops >= CntLoopPost));
 
-    bUpdateTrig = bUpdate && !bUpdate;
+    bUpdateTrig = bUpdate && !bUpdatePrev;
 
     if (bUpdate || bLightAlert) {
         ReadLights();
