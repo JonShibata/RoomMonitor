@@ -248,8 +248,9 @@ void loop() {
     if (bUpdate && bUpdateLightsCmpt && bUpdateTempCmpt && bUpdateHumCmpt &&
         WiFi.status() == WL_CONNECTED) {
 
+        UpdateHomeAlerts();
         UpdateSheets();
-        UpdateHomeCenter();
+
         bDoorOpenLatch    = false;
         bDoorOpenUpdate   = bDoorOpenLatch;
         bMotionUpdate     = bMotion;
@@ -532,7 +533,7 @@ void UpdateSheets() {
 //
 // Update the home center with the collected data
 
-void UpdateHomeCenter() {
+void UpdateHomeAlerts() {
 
     String s = "http://" + HomeAlertIP;
     s += "/bDoorAlert" + String(room_name) + "=" + String(bDoorAlert) + "&";
