@@ -68,11 +68,10 @@ bool bBeepEnabled = true;
 bool bMotion       = false;
 bool bMotionUpdate = false;
 
-bool bDoorOpen       = false;
-bool bDoorOpenLatch  = false;
-bool bDoorOpenUpdate = false;
-bool bDoorAlert      = false;
-bool bDoorAlertTrig  = false;
+bool bDoorOpen        = false;
+bool bDoorAlertUpdate = false;
+bool bDoorAlert       = false;
+bool bDoorAlertTrig   = false;
 
 bool bDaylight         = false;
 bool bLightAlert       = false;
@@ -148,7 +147,6 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     if (digitalRead(iPinDoor) == eDoorOpenCal) {
         bDoorLED       = true;
         bDoorOpen      = true;
-        bDoorOpenLatch = true;
 
         // CntDoorOpenBeepDelay = number of seconds when door is open before beeping starts
         if (CntDoorOpen < CntDoorOpenBeepDelay) {
@@ -184,8 +182,6 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     }
     digitalWrite(iPinLED_Motion, !bMotionLED);  // set LED (low side drive)
 
-    // Serial.printf(" bDoorOpen = %d", bDoorOpen);
-    // Serial.printf(" bBeep = %d", bBeep);
     Serial.printf(" CntLoops = %d", CntLoops);
     Serial.printf(" CntLoopPost = %d", CntLoopPost);
     Serial.printf(" bUpdate = %d", bUpdate);
@@ -197,8 +193,8 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
 
     Serial.printf(" bLightAlert = %d", bLightAlert);
     Serial.printf(" bLightAlertUpdate = %d", bLightAlertUpdate);
-    Serial.printf(" bDoorOpenLatch = %d", bDoorOpenLatch);
-    Serial.printf(" bDoorOpenUpdate = %d", bDoorOpenUpdate);
+    Serial.printf(" bDoorOpen = %d", bDoorOpen);
+    Serial.printf(" bDoorAlertUpdate = %d", bDoorAlertUpdate);
     Serial.printf(" bMotion = %d", bMotion);
     Serial.printf(" bMotionUpdate = %d\n\n", bMotionUpdate);
 }
@@ -221,12 +217,12 @@ void loop() {
 
     bDoorAlert = !bMotion && bDoorOpen;
 
-    bDoorAlertTrig = bDoorAlert && !bDoorOpenUpdate;
+    bDoorAlertTrig = bDoorAlert && !bDoorAlertUpdate;
 
 
     bUpdate =
-            ((bLightAlert != bLightAlertUpdate) || (bDoorOpenLatch != bDoorOpenUpdate) ||
-             (bMotion != bMotionUpdate) || (CntLoops >= CntLoopPost));
+            ((bLightAlertTrig) || (bDoorAlertTrig) || (bMotion != bMotionUpdate) ||
+             (CntLoops >= CntLoopPost));
 
     bUpdateTrig = bUpdate && !bUpdatePrev;
 
@@ -251,8 +247,7 @@ void loop() {
         UpdateHomeAlerts();
         UpdateSheets();
 
-        bDoorOpenLatch    = false;
-        bDoorOpenUpdate   = bDoorOpenLatch;
+        bDoorAlertUpdate  = bDoorAlert;
         bMotionUpdate     = bMotion;
         bLightAlertUpdate = bLightAlert;
         CntLoops          = 0;
@@ -504,7 +499,7 @@ void UpdateSheets() {
     String strReturn;
 
     url_string = "/macros/s/" + sheet_id + "/exec?room_name=" + room_name +
-            "&Door=" + String(bDoorOpenLatch) + "&Temperature=" + String(T_DHT) +
+            "&Door=" + String(bDoorOpen) + "&Temperature=" + String(T_DHT) +
             "&Humidity=" + String(PctHumidity) + "&Motion=" + String(bMotion) +
             "&Light1=" + String(CntLightIntensity1) + "&Light2=" + String(CntLightIntensity2) +
             "&LightAlert=" + String(bLightAlert) + "&DoorAlert=" + String(bDoorAlert) +
