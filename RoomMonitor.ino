@@ -9,6 +9,7 @@
 #include <ArduinoOTA.h>
 
 #include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
 
 #include "HTTPSRedirect.h"
 #include "DebugMacros.h"
@@ -22,6 +23,7 @@ extern "C" {
 #include "user_interface.h"
 }
 
+WiFiClient wificlient;
 
 // HTTPS Redirect -----------------------------------------------------
 
@@ -215,7 +217,7 @@ void loop() {
     bLightAlertTrig = bLightAlert && !bLightAlertUpdate;
 
 
-    bDoorAlert = !bMotion && bDoorOpen;
+    bDoorAlert = !bMotion && bDoorOpen && (CntDoorOpen == CntDoorOpenBeepDelay);
 
     bDoorAlertTrig = bDoorAlert && !bDoorAlertUpdate;
 
@@ -405,7 +407,7 @@ int GetHTTP_String(String* strURL, String* strReturn) {
 
     HTTPClient http;
 
-    http.begin(*strURL);
+    http.begin(wificlient, *strURL);
     int httpCode = http.GET();
     Serial.println("httpCode=" + String(httpCode));
 
