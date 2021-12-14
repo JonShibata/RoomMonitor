@@ -246,12 +246,12 @@ void loop() {
             (!bDaylight && !bMotion &&
              (CntLightIntensity1 > CntLightOnThresh || CntLightIntensity2 > CntLightOnThresh));
 
-    bLightAlertTrig = bLightAlert && !bLightAlertUpdate;
+    bLightAlertTrig = (bLightAlert != bLightAlertUpdate);
 
 
     bDoorAlert = !bMotion && bDoorOpen && (CntDoorOpen == CntDoorOpenAlertDelay);
 
-    bDoorAlertTrig = bDoorAlert && !bDoorAlertUpdate;
+    bDoorAlertTrig = (bDoorAlert != bDoorAlertUpdate);
 
 
     bUpdate =
@@ -270,7 +270,7 @@ void loop() {
     }
 
 
-    if (WiFi.status() != WL_CONNECTED) {
+    if (bUpdate && (WiFi.status() != WL_CONNECTED)) {
         ConnectToWiFi();
     }
 
