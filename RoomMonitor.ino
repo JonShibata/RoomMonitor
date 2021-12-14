@@ -47,6 +47,9 @@ HTTPSRedirect* client = nullptr;
 #define iPinLightD2 13    // GPIO13: D7
 #define iPinLED_Door 15   // GPIO15: D8
 
+#define iPinUltraPing 9
+#define iPinUltraRead 10
+
 
 // Wiring Info-----------------
 // Door     GND,            D1
@@ -123,11 +126,16 @@ void setup() {
     pinMode(iPinLED_Motion, OUTPUT);
     pinMode(iPinLED_Door, OUTPUT);
 
+    pinMode(iPinUltraPing, OUTPUT);
+    pinMode(iPinUltraRead, INPUT);
+
     os_timer_setfn(&myTimer, timerCallback, NULL);
     os_timer_arm(&myTimer, 1000, true);
 
     digitalWrite(iPinLED_Motion, true);  // set to off (low side drive)
     digitalWrite(iPinLED_Door, false);
+
+    digitalWrite(iPinUltraPing, false);
 }
 
 
@@ -147,14 +155,16 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
 
     // eDoorOpenCal = DIO state when door is open (depends on sensor type)
     if (digitalRead(iPinDoor) == eDoorOpenCal) {
-        bDoorLED       = true;
-        bDoorOpen      = true;
+        bDoorLED  = true;
+        bDoorOpen = true;
 
-        // CntDoorOpenBeepDelay = number of seconds when door is open before beeping starts
-        if (CntDoorOpen < CntDoorOpenBeepDelay) {
+        // CntDoorOpenBeepDelay = number of seconds when door is open before alert message
+        if (CntDoorOpen < CntDoorOpenAlertDelay) {
             // Count up until beep delay expires
             CntDoorOpen++;
-        } else {
+        }
+
+        if (CntDoorOpen >= CntDoorOpenBeepDelay) {
             // Door has been open longer than delay cal
             // cycle the audible alert
             bBeep = !bBeep;
@@ -217,7 +227,7 @@ void loop() {
     bLightAlertTrig = bLightAlert && !bLightAlertUpdate;
 
 
-    bDoorAlert = !bMotion && bDoorOpen && (CntDoorOpen == CntDoorOpenBeepDelay);
+    bDoorAlert = !bMotion && bDoorOpen && (CntDoorOpen == CntDoorOpenAlertDelay);
 
     bDoorAlertTrig = bDoorAlert && !bDoorAlertUpdate;
 
@@ -495,6 +505,7 @@ void FindIntInString(String* strMain, String strFind, int* return_val) {
     }
 }
 
+
 void UpdateSheets() {
 
     String url_string;
@@ -516,6 +527,7 @@ void UpdateSheets() {
     FindBoolInString(&strReturn, "bBeepEnabled\":", &bBeepEnabled);
     FindBoolInString(&strReturn, "bDaylight\":", &bDaylight);
 
+    FindIntInString(&strReturn, "CntDoorOpenAlertDelay\":", &CntDoorOpenAlertDelay);
     FindIntInString(&strReturn, "CntDoorOpenBeepDelay\":", &CntDoorOpenBeepDelay);
     FindIntInString(&strReturn, "CntLightOnThresh\":", &CntLightOnThresh);
     FindIntInString(&strReturn, "CntLoopPost\":", &CntLoopPost);
@@ -543,3 +555,37 @@ void UpdateHomeAlerts() {
     Serial.println("strReturn:");
     Serial.println(strReturn);
 }
+
+
+// /*
+//  * HC-SR04 example sketch
+//  *
+//  * https://create.arduino.cc/projecthub/Isaac100/getting-started-with-the-hc-sr04-ultrasonic-sensor-036380
+//  *
+//  * by Isaac100
+//  */
+
+// const int trigPin = 9;
+// const int echoPin = 10;
+
+// float duration, distance;
+
+// void setup() {
+//   pinMode(trigPin, OUTPUT);
+//   pinMode(echoPin, INPUT);
+//   Serial.begin(9600);
+// }
+
+// void loop() {
+//   digitalWrite(trigPin, LOW);
+//   delayMicroseconds(2);
+//   digitalWrite(trigPin, HIGH);
+//   delayMicroseconds(10);
+//   digitalWrite(trigPin, LOW);
+
+//   duration = pulseIn(echoPin, HIGH);
+//   distance = (duration*.0343)/2;
+//   Serial.print("Distance: ");
+//   Serial.println(distance);
+//   delay(100);
+// }

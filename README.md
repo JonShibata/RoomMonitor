@@ -26,6 +26,7 @@ const char *password = "WIFI_PASSWORD";
 
 const char* host = "script.google.com";
 
+// Apps Script Editor -  ID (Not Sheet ID)
 String sheet_id = "abdefghijklmnopqrstuvwxyz";
 
 
