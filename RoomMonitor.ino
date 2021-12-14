@@ -70,6 +70,10 @@ DHT_Unified dht(iPinDHT, eTypeDHT);
 bool bBeep        = false;
 bool bBeepEnabled = true;
 
+bool bFaultWifi       = false;
+bool bFaultHomeCenter = false;
+bool bFaultSheets     = false;
+
 bool bMotion       = false;
 bool bMotionUpdate = false;
 
@@ -96,6 +100,8 @@ int CntWifiFail = 0;
 
 int CntLightIntensity1 = 0;
 int CntLightIntensity2 = 0;
+
+int CntLoopRolling = 0;
 
 int CntMotionTimer = 0;
 
@@ -146,7 +152,7 @@ void setup() {
 void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
 
     bool bDoorLED;
-    bool bMotionLED;
+    bool bBoardLED = false;
 
     // CntLoopsPost = number of seconds before making a new post
     if (CntLoops < CntLoopPost) {
@@ -179,36 +185,52 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     digitalWrite(iPinBeep, bBeep);
     digitalWrite(iPinLED_Door, bDoorLED);
 
-    if (digitalRead(iPinMotion)) {
-        bMotion        = true;
-        bMotionLED     = true;
-        CntMotionTimer = 0;
+    CntLoopRolling++;
+    if (CntLoopRolling > 12) {
+        CntLoopRolling = 0;
+    }
+
+    if (bFaultWifi || bFaultHomeCenter || bFaultSheets) {
+        if ((bFaultWifi && CntLoopRolling == 0) ||
+            (bFaultHomeCenter && (CntLoopRolling == 2 || CntLoopRolling == 4)) ||
+            (bFaultSheets &&
+             (CntLoopRolling == 6 || CntLoopRolling == 8 || CntLoopRolling == 10))) {
+
+            bBoardLED = true;
+        }
+
     } else {
-        bMotionLED = false;
-        // CntMotionDelay = seconds to latch motion detection
-        if (CntMotionTimer < CntMotionDelay) {
-            CntMotionTimer++;
+        if (digitalRead(iPinMotion)) {
+            bMotion        = true;
+            bBoardLED      = true;
+            CntMotionTimer = 0;
         } else {
-            bMotion = false;
+            bBoardLED = false;
+            // CntMotionDelay = seconds to latch motion detection
+            if (CntMotionTimer < CntMotionDelay) {
+                CntMotionTimer++;
+            } else {
+                bMotion = false;
+            }
         }
     }
-    digitalWrite(iPinLED_Motion, !bMotionLED);  // set LED (low side drive)
+    digitalWrite(iPinLED_Motion, !bBoardLED);  // set LED (low side drive)
 
-    Serial.printf(" CntLoops = %d", CntLoops);
-    Serial.printf(" CntLoopPost = %d", CntLoopPost);
-    Serial.printf(" bUpdate = %d", bUpdate);
+    // Serial.printf(" CntLoops = %d", CntLoops);
+    // Serial.printf(" CntLoopPost = %d", CntLoopPost);
+    // Serial.printf(" bUpdate = %d", bUpdate);
 
-    Serial.printf(" bUpdateLightsCmpt = %d", bUpdateLightsCmpt);
-    Serial.printf(" bUpdateTempCmpt = %d", bUpdateTempCmpt);
-    Serial.printf(" bUpdateHumCmpt = %d\n", bUpdateHumCmpt);
+    // Serial.printf(" bUpdateLightsCmpt = %d", bUpdateLightsCmpt);
+    // Serial.printf(" bUpdateTempCmpt = %d", bUpdateTempCmpt);
+    // Serial.printf(" bUpdateHumCmpt = %d\n", bUpdateHumCmpt);
 
 
-    Serial.printf(" bLightAlert = %d", bLightAlert);
-    Serial.printf(" bLightAlertUpdate = %d", bLightAlertUpdate);
-    Serial.printf(" bDoorOpen = %d", bDoorOpen);
-    Serial.printf(" bDoorAlertUpdate = %d", bDoorAlertUpdate);
-    Serial.printf(" bMotion = %d", bMotion);
-    Serial.printf(" bMotionUpdate = %d\n\n", bMotionUpdate);
+    // Serial.printf(" bLightAlert = %d", bLightAlert);
+    // Serial.printf(" bLightAlertUpdate = %d", bLightAlertUpdate);
+    // Serial.printf(" bDoorOpen = %d", bDoorOpen);
+    // Serial.printf(" bDoorAlertUpdate = %d", bDoorAlertUpdate);
+    // Serial.printf(" bMotion = %d", bMotion);
+    // Serial.printf(" bMotionUpdate = %d\n\n", bMotionUpdate);
 }
 
 
@@ -358,6 +380,8 @@ void ConnectToWiFi() {
         Serial.print(".");
     }
 
+    bFaultWifi = (CntWifiRetries == CntWifiRetryAbort);
+
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("");
         Serial.println("WiFi NOT Connected");
@@ -421,7 +445,9 @@ int GetHTTP_String(String* strURL, String* strReturn) {
     int httpCode = http.GET();
     Serial.println("httpCode=" + String(httpCode));
 
-    if (httpCode > 0) {
+    bFaultHomeCenter = (httpCode > 0);
+
+    if (bFaultHomeCenter) {
         *strReturn = http.getString();
         Serial.println(*strReturn);
     }
@@ -443,29 +469,29 @@ void GetHTTPS_String(String* strURL, String* strReturn) {
     Serial.println(host);
 
     // Try to connect for a maximum of 5 times
-    bool flag = false;
+    bool bFaultSheetsLocal = true;
 
     for (int i = 0; i < 5; i++) {
         int retval = client->connect(host, httpsPort);
         if (retval == 1) {
-            flag = true;
+            bFaultSheetsLocal = false;
             break;
         } else
             Serial.println("Connection failed. Retrying...");
     }
 
-    if (flag) {
+    bFaultSheets = bFaultSheetsLocal;
 
-        client->GET(*strURL, host);
-
-        *strReturn = client->getResponseBody();
-        Serial.println(*strReturn);
-
-    } else {
+    if (bFaultSheetsLocal) {
 
         Serial.print("Could not connect to server: ");
         Serial.println(host);
         Serial.println("Exiting...");
+    } else {
+        client->GET(*strURL, host);
+
+        *strReturn = client->getResponseBody();
+        Serial.println(*strReturn);
     }
 
     delete client;
