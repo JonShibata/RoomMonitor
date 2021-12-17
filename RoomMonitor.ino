@@ -32,10 +32,6 @@ const int httpsPort = 443;  // HTTPS = 443 and HTTP = 80
 HTTPSRedirect* client = nullptr;
 
 
-// TODO: Update IFTTT for door state change and lights on / off at night
-// TODO: replace delays with timers, check results after timer expire
-
-
 // Define pin locations
 
 #define iPinDoor 5        // GPIO5:  D1
@@ -185,35 +181,40 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     digitalWrite(iPinBeep, bBeep);
     digitalWrite(iPinLED_Door, bDoorLED);
 
-    CntLoopRolling++;
-    if (CntLoopRolling > 12) {
-        CntLoopRolling = 0;
+    if (digitalRead(iPinMotion)) {
+        bMotion        = true;
+        bBoardLED      = true;
+        CntMotionTimer = 0;
+    } else {
+        bBoardLED = false;
+        // CntMotionDelay = seconds to latch motion detection
+        if (CntMotionTimer < CntMotionDelay) {
+            CntMotionTimer++;
+        } else {
+            bMotion = false;
+        }
     }
 
+
+    // Override motion LED if faults exist
     if (bFaultWifi || bFaultHomeCenter || bFaultSheets) {
+
+        CntLoopRolling++;
+        if (CntLoopRolling > 12) {
+            CntLoopRolling = 0;
+        }
+
         if ((bFaultWifi && CntLoopRolling == 0) ||
             (bFaultHomeCenter && (CntLoopRolling == 2 || CntLoopRolling == 4)) ||
             (bFaultSheets &&
              (CntLoopRolling == 6 || CntLoopRolling == 8 || CntLoopRolling == 10))) {
 
             bBoardLED = true;
-        }
-
-    } else {
-        if (digitalRead(iPinMotion)) {
-            bMotion        = true;
-            bBoardLED      = true;
-            CntMotionTimer = 0;
         } else {
             bBoardLED = false;
-            // CntMotionDelay = seconds to latch motion detection
-            if (CntMotionTimer < CntMotionDelay) {
-                CntMotionTimer++;
-            } else {
-                bMotion = false;
-            }
         }
     }
+
     digitalWrite(iPinLED_Motion, !bBoardLED);  // set LED (low side drive)
 
     // Serial.printf(" CntLoops = %d", CntLoops);
@@ -340,14 +341,18 @@ void ReadLights() {
 
     dtReadLights = run_time - tReadLightsStart;
 
-    if (dtReadLights < 700) {
+    if (dtReadLights < (unsigned long)tLightRead) {
+
         digitalWrite(iPinLightD1, HIGH);
         digitalWrite(iPinLightD2, LOW);
         CntLightIntensity1 = analogRead(A0);
-    } else if (dtReadLights < 1400) {
+
+    } else if (dtReadLights < (unsigned long)(tLightRead * 2)) {
+
         digitalWrite(iPinLightD1, LOW);
         digitalWrite(iPinLightD2, HIGH);
         CntLightIntensity2 = analogRead(A0);
+
     } else {
         bUpdateLightsCmpt = true;
         digitalWrite(iPinLightD1, LOW);
@@ -561,6 +566,8 @@ void UpdateSheets() {
     FindIntInString(&strReturn, "CntWifiRetryAbort\":", &CntWifiRetryAbort);
 
     FindBoolInString(&strReturn, "eDoorOpenCal\":", &eDoorOpenCal);
+
+    FindIntInString(&strReturn, "tLightRead\":", &tLightRead);
 }
 
 

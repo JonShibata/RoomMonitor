@@ -32,6 +32,6 @@ int CntMotionDelay        = 300;
 int CntWifiRetryAbort     = 10;
 int CntWifiFailThresh     = 10;
 int CntLoopPost           = 30;
-
+int tLightRead            = 1000;
 
 String HomeAlertIP = "192.168.86.200";  // ip address of the home center
