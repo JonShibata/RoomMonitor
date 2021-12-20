@@ -83,6 +83,8 @@ bool bLightAlert       = false;
 bool bLightAlertTrig   = false;
 bool bLightAlertUpdate = false;
 
+bool bRebootRqst = false;
+
 bool bUpdate           = false;
 bool bUpdateTrig       = false;
 bool bUpdateTempCmpt   = false;
@@ -289,7 +291,7 @@ void loop() {
     }
 
 
-    if (CntWifiFail > CntWifiFailThresh) {
+    if ((CntWifiFail > CntWifiFailThresh) || bRebootRqst) {
         ESP.restart();
     }
     ArduinoOTA.handle();
@@ -557,6 +559,7 @@ void UpdateSheets() {
 
     FindBoolInString(&strReturn, "bBeepEnabled\":", &bBeepEnabled);
     FindBoolInString(&strReturn, "bDaylight\":", &bDaylight);
+    FindBoolInString(&strReturn, "bRebootRqst\":", &bRebootRqst);
 
     FindIntInString(&strReturn, "CntDoorOpenAlertDelay\":", &CntDoorOpenAlertDelay);
     FindIntInString(&strReturn, "CntDoorOpenBeepDelay\":", &CntDoorOpenBeepDelay);
