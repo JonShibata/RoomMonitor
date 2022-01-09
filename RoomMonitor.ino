@@ -82,6 +82,7 @@ bool bDaylight         = false;
 bool bLightAlert       = false;
 bool bLightAlertTrig   = false;
 bool bLightAlertUpdate = false;
+bool bLightOn          = false;
 
 bool bRebootRqst = false;
 
@@ -91,9 +92,10 @@ bool bUpdateTempCmpt   = false;
 bool bUpdateHumCmpt    = false;
 bool bUpdateLightsCmpt = false;
 
-int CntDoorOpen = 0;
+int tDoorOpen = 0;
+int tLightOn  = 0;
 
-int CntLoops    = 0;
+int tLoops      = 0;
 int CntWifiFail = 0;
 
 int CntLightIntensity1 = 0;
@@ -101,7 +103,7 @@ int CntLightIntensity2 = 0;
 
 int CntLoopRolling = 0;
 
-int CntMotionTimer = 0;
+int tMotionTimer = 0;
 
 float PctHumidity = 0.0F;
 float T_DHT       = 0.0F;
@@ -152,46 +154,54 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
     bool bDoorLED;
     bool bBoardLED = false;
 
-    // CntLoopsPost = number of seconds before making a new post
-    if (CntLoops < CntLoopPost) {
-        CntLoops++;
+    // tLoopsPost = number of seconds before making a new post
+    if (tLoops < tPost) {
+        tLoops++;
     }
+
+
+    if (bLightOn && tLightOn < tLightAlertThresh) {
+        tLightOn++;
+    } else {
+        tLightOn = 0;
+    }
+
 
     // eDoorOpenCal = DIO state when door is open (depends on sensor type)
     if (digitalRead(iPinDoor) == eDoorOpenCal) {
         bDoorLED  = true;
         bDoorOpen = true;
 
-        // CntDoorOpenBeepDelay = number of seconds when door is open before alert message
-        if (CntDoorOpen < CntDoorOpenAlertDelay) {
+        // tDoorOpenBeepDelay = number of seconds when door is open before alert message
+        if (tDoorOpen < tDoorOpenAlertDelay) {
             // Count up until beep delay expires
-            CntDoorOpen++;
+            tDoorOpen++;
         }
 
-        if (CntDoorOpen >= CntDoorOpenBeepDelay) {
+        if (tDoorOpen >= tDoorOpenBeepDelay) {
             // Door has been open longer than delay cal
             // cycle the audible alert
             bBeep = !bBeep;
         }
     } else {
-        bBeep       = false;
-        bDoorLED    = false;
-        bDoorOpen   = false;
-        CntDoorOpen = 0;
+        bBeep     = false;
+        bDoorLED  = false;
+        bDoorOpen = false;
+        tDoorOpen = 0;
     }
 
     digitalWrite(iPinBeep, bBeep);
     digitalWrite(iPinLED_Door, bDoorLED);
 
     if (digitalRead(iPinMotion)) {
-        bMotion        = true;
-        bBoardLED      = true;
-        CntMotionTimer = 0;
+        bMotion      = true;
+        bBoardLED    = true;
+        tMotionTimer = 0;
     } else {
         bBoardLED = false;
-        // CntMotionDelay = seconds to latch motion detection
-        if (CntMotionTimer < CntMotionDelay) {
-            CntMotionTimer++;
+        // tMotionDelay = seconds to latch motion detection
+        if (tMotionTimer < tMotionDelay) {
+            tMotionTimer++;
         } else {
             bMotion = false;
         }
@@ -219,8 +229,8 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
 
     digitalWrite(iPinLED_Motion, !bBoardLED);  // set LED (low side drive)
 
-    // Serial.printf(" CntLoops = %d", CntLoops);
-    // Serial.printf(" CntLoopPost = %d", CntLoopPost);
+    // Serial.printf(" tLoops = %d", tLoops);
+    // Serial.printf(" tPost = %d", tPost);
     // Serial.printf(" bUpdate = %d", bUpdate);
 
     // Serial.printf(" bUpdateLightsCmpt = %d", bUpdateLightsCmpt);
@@ -245,25 +255,27 @@ void loop() {
 
     bool bUpdatePrev = bUpdate;
 
-    bLightAlert =
+    bLightOn =
             (!bDaylight && !bMotion &&
              (CntLightIntensity1 > CntLightOnThresh || CntLightIntensity2 > CntLightOnThresh));
+
+    bLightAlert = (tLightOn == tLightAlertThresh);
 
     bLightAlertTrig = (bLightAlert != bLightAlertUpdate);
 
 
-    bDoorAlert = !bMotion && bDoorOpen && (CntDoorOpen == CntDoorOpenAlertDelay);
+    bDoorAlert = !bMotion && bDoorOpen && (tDoorOpen == tDoorOpenAlertDelay);
 
     bDoorAlertTrig = (bDoorAlert != bDoorAlertUpdate);
 
 
     bUpdate =
             ((bLightAlertTrig) || (bDoorAlertTrig) || (bMotion != bMotionUpdate) ||
-             (CntLoops >= CntLoopPost));
+             (tLoops >= tPost));
 
     bUpdateTrig = bUpdate && !bUpdatePrev;
 
-    if (bUpdate || bLightAlert) {
+    if (bUpdate || bLightOn) {
         ReadLights();
     }
 
@@ -287,7 +299,7 @@ void loop() {
         bDoorAlertUpdate  = bDoorAlert;
         bMotionUpdate     = bMotion;
         bLightAlertUpdate = bLightAlert;
-        CntLoops          = 0;
+        tLoops            = 0;
     }
 
 
@@ -561,15 +573,16 @@ void UpdateSheets() {
     FindBoolInString(&strReturn, "bDaylight\":", &bDaylight);
     FindBoolInString(&strReturn, "bRebootRqst\":", &bRebootRqst);
 
-    FindIntInString(&strReturn, "CntDoorOpenAlertDelay\":", &CntDoorOpenAlertDelay);
-    FindIntInString(&strReturn, "CntDoorOpenBeepDelay\":", &CntDoorOpenBeepDelay);
     FindIntInString(&strReturn, "CntLightOnThresh\":", &CntLightOnThresh);
-    FindIntInString(&strReturn, "CntLoopPost\":", &CntLoopPost);
-    FindIntInString(&strReturn, "CntMotionDelay\":", &CntMotionDelay);
+    FindIntInString(&strReturn, "tPost\":", &tPost);
+    FindIntInString(&strReturn, "tMotionDelay\":", &tMotionDelay);
     FindIntInString(&strReturn, "CntWifiRetryAbort\":", &CntWifiRetryAbort);
 
     FindBoolInString(&strReturn, "eDoorOpenCal\":", &eDoorOpenCal);
 
+    FindIntInString(&strReturn, "tDoorOpenAlertDelay\":", &tDoorOpenAlertDelay);
+    FindIntInString(&strReturn, "tDoorOpenBeepDelay\":", &tDoorOpenBeepDelay);
+    FindIntInString(&strReturn, "tLightAlertThresh\":", &tLightAlertThresh);
     FindIntInString(&strReturn, "tLightRead\":", &tLightRead);
 }
 

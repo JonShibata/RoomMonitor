@@ -25,13 +25,14 @@ bool        eDoorOpenCal = true;
 // configurations only used until first connection with google sheet
 // New calibrations are pulled down each time an update is made to the sheet
 
-int CntDoorOpenAlertDelay = 300;
-int CntDoorOpenBeepDelay  = 30;
-int CntLightOnThresh      = 100;
-int CntMotionDelay        = 300;
-int CntWifiRetryAbort     = 10;
-int CntWifiFailThresh     = 10;
-int CntLoopPost           = 30;
-int tLightRead            = 1000;
+int CntLightOnThresh    = 100;
+int CntWifiRetryAbort   = 10;
+int CntWifiFailThresh   = 10;
+int tDoorOpenAlertDelay = 300;
+int tDoorOpenBeepDelay  = 30;
+int tLightAlertThresh   = 600;
+int tLightRead          = 1000;
+int tMotionDelay        = 300;
+int tPost               = 30;
 
 String HomeAlertIP = "192.168.86.200";  // ip address of the home center
