@@ -18,9 +18,9 @@
 #include <DHT_U.h>
 
 
-extern "C" {
-#include "user_interface.h"
-}
+// extern "C" {
+// #include "user_interface.h"
+// }
 
 
 // HTTPS Redirect -----------------------------------------------------
@@ -405,7 +405,7 @@ int GetHTTP_String(String* strURL, String* strReturn) {
 
     HTTPClient http;
 
-    http.begin(*strURL);
+    http::begin(client, *strURL);
     int httpCode = http.GET();
     Serial.println("httpCode=" + String(httpCode));
 
@@ -498,7 +498,7 @@ void UpdateSheets() {
     String url_string;
     String strReturn;
 
-    url_string = "/macros/s/" + sheet_id + "/exec?room_name=" + room_name +
+    url_string = "/macros/s/" + String(sheet_id) + "/exec?room_name=" + String(room_name) +
             "&Door=" + String(bDoorOpen) + "&Temperature=" + String(T_DHT) +
             "&Humidity=" + String(PctHumidity) + "&Motion=" + String(bMotion) +
             "&Light1=" + String(CntLightIntensity1) + "&Light2=" + String(CntLightIntensity2) +
