@@ -33,5 +33,5 @@ int CntWifiFailThresh    = 10;
 int CntLoopPost          = 30;
 
 
-String HomeAlertIP = "192.168.86.200";  // ip address of the home center
+String HomeAlertIP = "192.168.68.200";  // ip address of the home center
 
