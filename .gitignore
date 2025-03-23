@@ -32,6 +32,6 @@
 *.app
 
 # Shibata
-WifiConfig.h
-SheetConfig.h
-build_outputs/
+src/WifiConfig.h
+src/SheetConfig.h
+.pio/
