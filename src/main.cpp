@@ -9,8 +9,6 @@
 #include "DebugMacros.h"
 
 #include <Adafruit_Sensor.h>
-#include <DHT.h>
-#include <DHT_U.h>
 
 #include "ScriptConfig.h"
 #include "SheetConfig.h"
@@ -21,51 +19,46 @@
 // #include "user_interface.h"
 // }
 
-
 // HTTPS Redirect -----------------------------------------------------
 
 const int httpsPort = 443;  // HTTPS = 443 and HTTP = 80
 
 HTTPSRedirect* client = nullptr;
 
-
-// TODO: Update IFTTT for door state change and lights on / off at night
-// TODO: replace delays with timers, check results after timer expire
-
-
 // Define pin locations
-
 #define iPinDoor 5        // GPIO5:  D1
 #define iPinMotion 4      // GPIO4:  D2
 #define iPinBeep 0        // GPIO0:  D3
 #define iPinLED_Motion 2  // GPIO2:  D4: Built in LED
-#define iPinDHT 14        // GPIO14: D5
+#define iPinHT 14         // GPIO14: D5
 #define iPinLightD1 12    // GPIO12: D6
 #define iPinLightD2 13    // GPIO13: D7
 #define iPinLED_Door 15   // GPIO15: D8
-
 
 // Wiring Info-----------------
 // Door     GND,            D1
 // PIR      GND, Vin (+5V), D2
 // Buzzer   GND,            D3
-// DHT      GND, 3.3V,      D5
+// HT       GND, 3.3V,      D5
 // Light1   GND, A0         D6
 // Light2   GND, A0         D7
 
-
-#define eTypeDHT DHT22  // Select DHT type
-
-
-// Configure DHT
-DHT_Unified dht(iPinDHT, eTypeDHT);
-
+#ifdef USE_AHT_SENSOR
+  #include <Adafruit_AHTX0.h>
+  Adafruit_AHTX0 aht;
+  #define iPinSDA 12 // GPIO12: D6
+  #define iPinSCL 13 // GPIO13: D7
+#elif defined(USE_DHT_SENSOR)
+  #include <DHT.h>
+  #include <DHT_U.h>
+  DHT_Unified dht(iPinHT, DHT22);
+#endif
 
 bool bBeep = false;
-bool bBeepEnabled = true;
 
 bool bMotion = false;
 bool bMotionUpdate = false;
+bool bMotionTrigger = false;
 
 bool bDoorOpen = false;
 bool bDoorAlertUpdate = false;
@@ -79,9 +72,9 @@ bool bLightAlertUpdate = false;
 
 bool bUpdate = false;
 bool bUpdateTrig = false;
-bool bUpdateTempCmpt = false;
-bool bUpdateHumCmpt = false;
-bool bUpdateLightsCmpt = false;
+bool bUpdateTempCpt = false;
+bool bUpdateHumCpt = false;
+bool bUpdateLightsCpt = false;
 
 int CntDoorOpen = 0;
 
@@ -94,47 +87,46 @@ int CntLightIntensity2 = 0;
 int CntMotionTimer = 0;
 
 float PctHumidity = 0.0F;
-float T_DHT = 0.0F;
+float T_Ambient = 0.0F;
 
 unsigned long tReadLightsStart = 0UL;
 unsigned long tWiFiConnectStart = 0UL;
 
 os_timer_t myTimer;
 
-
-sensors_event_t EventTemperature;
-sensors_event_t EventHumidity;
+sensors_event_t humidity, temperature;
 
 //
 //
 // Function to read temperature and humidity from the DHT
 
-void Read_DHT() {
+
+void ReadHumidityTemperature() {
 
   if (bUpdateTrig) {
-    bUpdateTempCmpt = false;
-    bUpdateHumCmpt = false;
-    T_DHT = -99.0F;
+    bUpdateTempCpt = false;
+    bUpdateHumCpt = false;
+    T_Ambient = -99.0F;
     PctHumidity = -99.0F;
-    dht.temperature().getEvent(&EventTemperature);
-    dht.humidity().getEvent(&EventHumidity);
+    #ifdef USE_AHT_SENSOR
+      aht.getEvent(&humidity, &temperature);
+    #elif defined(USE_DHT_SENSOR)
+      dht.humidity().getEvent(&humidity);
+      dht.temperature().getEvent(&temperature);
+    #endif
   }
 
-  if (!isnan(EventTemperature.temperature) && EventTemperature.temperature > -90.0) {
-    T_DHT = EventTemperature.temperature;
-    bUpdateTempCmpt = true;
+  if (!isnan(temperature.temperature) && temperature.temperature > -90.0) {
+    T_Ambient = temperature.temperature;
+    bUpdateTempCpt = true;
   }
 
-  if (!isnan(EventHumidity.relative_humidity) && EventHumidity.relative_humidity > -90.0) {
-    PctHumidity = EventHumidity.relative_humidity;
-    bUpdateHumCmpt = true;
+  if (!isnan(humidity.relative_humidity) && humidity.relative_humidity > -90.0) {
+    PctHumidity = humidity.relative_humidity;
+    bUpdateHumCpt = true;
   }
 }
 
-
-//
-//
-// Function to multiplex the light sensors and read analog voltages
 
 void ReadLights() {
   // Multiplexed to analog input
@@ -143,32 +135,28 @@ void ReadLights() {
   unsigned long dtReadLights;
   unsigned long run_time = millis();
 
-  if (bUpdateTrig || (bLightAlert && bUpdateLightsCmpt)) {
+  if (bUpdateTrig || (bLightAlert && bUpdateLightsCpt)) {
     tReadLightsStart = run_time;
-    bUpdateLightsCmpt = false;
+    bUpdateLightsCpt = false;
   }
 
   dtReadLights = run_time - tReadLightsStart;
 
-  if (dtReadLights < 700) {
+  if (dtReadLights < (unsigned long)tLightRead) {
     digitalWrite(iPinLightD1, HIGH);
     digitalWrite(iPinLightD2, LOW);
     CntLightIntensity1 = analogRead(A0);
-  } else if (dtReadLights < 1400) {
+  } else if (dtReadLights < (unsigned long)(tLightRead * 2)) {
     digitalWrite(iPinLightD1, LOW);
     digitalWrite(iPinLightD2, HIGH);
     CntLightIntensity2 = analogRead(A0);
   } else {
-    bUpdateLightsCmpt = true;
+    bUpdateLightsCpt = true;
     digitalWrite(iPinLightD1, LOW);
     digitalWrite(iPinLightD2, LOW);
   }
 }
 
-
-//
-//
-// Connect to Wifi
 
 void ConnectToWiFi() {
 
@@ -344,7 +332,7 @@ void UpdateSheets() {
   String strReturn;
 
   url_string = "/macros/s/" + String(sheet_id) + "/exec?room_name=" + String(room_name) +
-      "&Door=" + String(bDoorOpen) + "&Temperature=" + String(T_DHT) +
+      "&Door=" + String(bDoorOpen) + "&Temperature=" + String(T_Ambient) +
       "&Humidity=" + String(PctHumidity) + "&Motion=" + String(bMotion) +
       "&Light1=" + String(CntLightIntensity1) + "&Light2=" + String(CntLightIntensity2) +
       "&LightAlert=" + String(bLightAlert) + "&DoorAlert=" + String(bDoorAlert) +
@@ -358,20 +346,19 @@ void UpdateSheets() {
 
   FindBoolInString(&strReturn, "bBeepEnabled\":", &bBeepEnabled);
   FindBoolInString(&strReturn, "bDaylight\":", &bDaylight);
+  FindBoolInString(&strReturn, "bDoorOpenDir\":", &bDoorOpenDir);
 
-  FindIntInString(&strReturn, "CntDoorOpenBeepDelay\":", &CntDoorOpenBeepDelay);
   FindIntInString(&strReturn, "CntLightOnThresh\":", &CntLightOnThresh);
-  FindIntInString(&strReturn, "CntLoopPost\":", &CntLoopPost);
-  FindIntInString(&strReturn, "CntMotionDelay\":", &CntMotionDelay);
   FindIntInString(&strReturn, "CntWifiRetryAbort\":", &CntWifiRetryAbort);
 
-  FindBoolInString(&strReturn, "eDoorOpenCal\":", &eDoorOpenCal);
+  FindIntInString(&strReturn, "tDoorOpenAlertDelay\":", &tDoorOpenAlertDelay);
+  FindIntInString(&strReturn, "tDoorOpenBeepDelay\":", &tDoorOpenBeepDelay);
+  FindIntInString(&strReturn, "tLightAlertThresh\":", &tLightAlertThresh);
+  FindIntInString(&strReturn, "tLightRead\":", &tLightRead);
+  FindIntInString(&strReturn, "tMotionDelay\":", &tMotionDelay);
+  FindIntInString(&strReturn, "tPost\":", &tPost);
 }
 
-
-//
-//
-// Update the home center with the collected data
 
 void UpdateHomeAlerts() {
 
@@ -388,141 +375,164 @@ void UpdateHomeAlerts() {
 }
 
 
-//
-//
-// Periodic loop timer
-
 void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
 
-  bool bDoorLED;
-  bool bMotionLED;
-
   // CntLoopsPost = number of seconds before making a new post
-  if (CntLoops < CntLoopPost) {
+  if (CntLoops < tPost) {
     CntLoops++;
   }
 
-  // eDoorOpenCal = DIO state when door is open (depends on sensor type)
-  if (digitalRead(iPinDoor) == eDoorOpenCal) {
-    bDoorLED = true;
-    bDoorOpen = true;
+  Serial.printf(" CntLoops = %d", CntLoops);
+  Serial.printf(" tPost = %d", tPost);
+  Serial.printf(" bUpdate = %d", bUpdate);
 
-    // CntDoorOpenBeepDelay = number of seconds when door is open before beeping starts
-    if (CntDoorOpen < CntDoorOpenBeepDelay) {
-      // Count up until beep delay expires
-      CntDoorOpen++;
+  #ifdef USE_LIGHT_SENSORS
+    Serial.printf(" bUpdateLightsCpt = %d", bUpdateLightsCpt);
+  #endif
+
+  #if defined(USE_AHT_SENSOR) || defined(USE_DHT_SENSOR)
+    Serial.printf(" bUpdateTempCpt = %d", bUpdateTempCpt);
+    Serial.printf(" bUpdateHumCpt = %d\n", bUpdateHumCpt);
+  #endif
+
+  #ifdef USE_LIGHT_SENSORS
+    Serial.printf(" bLightAlert = %d", bLightAlert);
+    Serial.printf(" bLightAlertUpdate = %d", bLightAlertUpdate);
+  #endif
+
+  #ifdef USE_DOOR_SENSOR
+    bool bDoorLED;
+    // bDoorOpenDir = DIO state when door is open (depends on sensor type)
+    if (digitalRead(iPinDoor) == bDoorOpenDir) {
+      bDoorLED = true;
+      bDoorOpen = true;
+
+      // tDoorOpenAlertDelay = number of seconds when door is open before beeping starts
+      if (CntDoorOpen < tDoorOpenAlertDelay) {
+        // Count up until beep delay expires
+        CntDoorOpen++;
+      } else {
+        // Door has been open longer than delay cal
+        // cycle the audible alert
+        bBeep = !bBeep;
+      }
     } else {
-      // Door has been open longer than delay cal
-      // cycle the audible alert
-      bBeep = !bBeep;
+      bBeep = false;
+      bDoorLED = false;
+      bDoorOpen = false;
+      CntDoorOpen = 0;
     }
-  } else {
-    bBeep = false;
-    bDoorLED = false;
-    bDoorOpen = false;
-    CntDoorOpen = 0;
-  }
+    if (bBeepEnabled) {}
+      digitalWrite(iPinBeep, bBeep);
+    }
+    digitalWrite(iPinLED_Door, bDoorLED);
+    Serial.printf(" bDoorOpen = %d", bDoorOpen);
+    Serial.printf(" bDoorAlertUpdate = %d", bDoorAlertUpdate);
+  #endif
 
-  digitalWrite(iPinBeep, bBeep);
-  digitalWrite(iPinLED_Door, bDoorLED);
-
+  #ifdef USE_MOTION_SENSOR
+  bool bMotionLED;
   if (digitalRead(iPinMotion)) {
     bMotion = true;
     bMotionLED = true;
     CntMotionTimer = 0;
   } else {
     bMotionLED = false;
-    // CntMotionDelay = seconds to latch motion detection
-    if (CntMotionTimer < CntMotionDelay) {
+    // tMotionDelay = seconds to latch motion detection
+    if (CntMotionTimer < tMotionDelay) {
       CntMotionTimer++;
     } else {
       bMotion = false;
     }
   }
   digitalWrite(iPinLED_Motion, !bMotionLED);  // set LED (low side drive)
-
-  Serial.printf(" CntLoops = %d", CntLoops);
-  Serial.printf(" CntLoopPost = %d", CntLoopPost);
-  Serial.printf(" bUpdate = %d", bUpdate);
-
-  Serial.printf(" bUpdateLightsCmpt = %d", bUpdateLightsCmpt);
-  Serial.printf(" bUpdateTempCmpt = %d", bUpdateTempCmpt);
-  Serial.printf(" bUpdateHumCmpt = %d\n", bUpdateHumCmpt);
-
-
-  Serial.printf(" bLightAlert = %d", bLightAlert);
-  Serial.printf(" bLightAlertUpdate = %d", bLightAlertUpdate);
-  Serial.printf(" bDoorOpen = %d", bDoorOpen);
-  Serial.printf(" bDoorAlertUpdate = %d", bDoorAlertUpdate);
   Serial.printf(" bMotion = %d", bMotion);
-  Serial.printf(" bMotionUpdate = %d\n\n", bMotionUpdate);
+  Serial.printf(" bMotionUpdate = %d", bMotionUpdate);
+  #endif
+  Serial.printf("\n\n");
 }
 
 
 void setup() {
   Serial.begin(115200);
 
-  dht.begin();
+  #ifdef USE_AHT_SENSOR
+    aht.begin();
+    Wire.begin(iPinSDA, iPinSCL);
+  #elif defined(USE_DHT_SENSOR)
+    dht.begin();
+  #endif
 
-  pinMode(iPinDoor, INPUT_PULLUP);
-  pinMode(iPinMotion, INPUT);
+  #ifdef USE_LIGHT_SENSORS 
+    pinMode(iPinLightD1, OUTPUT);
+    pinMode(iPinLightD2, OUTPUT);
+  #endif
 
-  pinMode(iPinLightD1, OUTPUT);
-  pinMode(iPinLightD2, OUTPUT);
+  #ifdef USE_DOOR_SENSOR
+    pinMode(iPinDoor, INPUT_PULLUP);
+    pinMode(iPinLED_Door, OUTPUT);
+    digitalWrite(iPinLED_Door, false);
+  #endif
+
+  #ifdef USE_MOTION_SENSOR
+    pinMode(iPinMotion, INPUT);
+    pinMode(iPinLED_Motion, OUTPUT);
+    digitalWrite(iPinLED_Motion, true);  // set to off (low side drive)
+  #endif
+
   pinMode(iPinBeep, OUTPUT);
-  pinMode(iPinLED_Motion, OUTPUT);
-  pinMode(iPinLED_Door, OUTPUT);
 
   os_timer_setfn(&myTimer, timerCallback, NULL);
   os_timer_arm(&myTimer, 1000, true);
-
-  digitalWrite(iPinLED_Motion, true);  // set to off (low side drive)
-  digitalWrite(iPinLED_Door, false);
 }
 
-
-//
-//
-// Main loop to evaluate the need to post an update and reset the values
 
 void loop() {
 
   bool bUpdatePrev = bUpdate;
 
-  bLightAlert =
-      (!bDaylight && !bMotion &&
-       (CntLightIntensity1 > CntLightOnThresh || CntLightIntensity2 > CntLightOnThresh));
+  #ifdef USE_LIGHT_SENSORS
+    bLightAlert =
+        (!bDaylight && !bMotion &&
+         (CntLightIntensity1 > CntLightOnThresh || CntLightIntensity2 > CntLightOnThresh));
 
-  bLightAlertTrig = bLightAlert && !bLightAlertUpdate;
-
-
-  bDoorAlert = !bMotion && bDoorOpen;
-
-  bDoorAlertTrig = bDoorAlert && !bDoorAlertUpdate;
-
+    bLightAlertTrig = bLightAlert && !bLightAlertUpdate;
+  #endif
+  
+  #if defined(USE_DOOR_SENSOR) && defined(USE_MOTION_SENSOR)
+    bDoorAlert = !bMotion && bDoorOpen;
+    bDoorAlertTrig = bDoorAlert && !bDoorAlertUpdate;
+    bMotionTrigger = bMotion && !bMotionUpdate;
+  #endif
 
   bUpdate =
-      ((bLightAlertTrig) || (bDoorAlertTrig) || (bMotion != bMotionUpdate) ||
-       (CntLoops >= CntLoopPost));
+      (bLightAlertTrig || bDoorAlertTrig || bMotionTrigger ||
+       (CntLoops >= tPost));
 
   bUpdateTrig = bUpdate && !bUpdatePrev;
+  
+  #ifdef USE_LIGHT_SENSORS
+    if (bUpdate || bLightAlert) {
+      ReadLights();
+    }
+  #else
+    bUpdateLightsCpt = true;
+  #endif
 
-  if (bUpdate || bLightAlert) {
-    ReadLights();
-  }
-
-
+  #if defined(USE_DHT_SENSOR) || defined(USE_AHT_SENSOR)
   if (bUpdate) {
-    Read_DHT();
+    ReadHumidityTemperature();
   }
-
+  #else
+    bUpdateTempCpt = true;
+    bUpdateHumCpt = true;
+  #endif
 
   if (WiFi.status() != WL_CONNECTED) {
     ConnectToWiFi();
   }
 
-
-  if (bUpdate && bUpdateLightsCmpt && bUpdateTempCmpt && bUpdateHumCmpt &&
+  if (bUpdate && bUpdateLightsCpt && bUpdateTempCpt && bUpdateHumCpt &&
       WiFi.status() == WL_CONNECTED) {
 
     UpdateHomeAlerts();
@@ -533,7 +543,6 @@ void loop() {
     bLightAlertUpdate = bLightAlert;
     CntLoops = 0;
   }
-
 
   if (CntWifiFail > CntWifiFailThresh) {
     ESP.restart();
