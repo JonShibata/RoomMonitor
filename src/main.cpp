@@ -454,7 +454,50 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
   Serial.printf("\n\n");
 }
 
+void UpdateSensorsBlocking() {
+  // Force a trigger
+  bUpdateTrig = true;
+  
+  // Start the read process
+  #ifdef USE_LIGHT_SENSORS
+  ReadLights();
+  #endif
+  
+  #if defined(USE_DHT_SENSOR) || defined(USE_AHT_SENSOR)
+  ReadHumidityTemperature();
+  #endif
+  
+  // Clear trigger so we don't restart the process in the loop
+  bUpdateTrig = false;
+  
+  // Wait for completion
+  bool bDone = false;
+  while (!bDone) {
+    bDone = true;
+    
+    #ifdef USE_LIGHT_SENSORS
+    if (!bUpdateLightsCpt) {
+      ReadLights();
+      bDone = false;
+    }
+    #endif
+    
+    #if defined(USE_DHT_SENSOR) || defined(USE_AHT_SENSOR)
+    if (!bUpdateTempCpt || !bUpdateHumCpt) {
+      ReadHumidityTemperature();
+      if (!bUpdateTempCpt || !bUpdateHumCpt) bDone = false;
+    }
+    #endif
+    
+    if (!bDone) {
+      delay(10);
+      yield(); // Allow network stack to process
+    }
+  }
+}
+
 void handleRoot() {
+  UpdateSensorsBlocking();
   String html = "<!DOCTYPE html><html><head>";
   html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
   html += "<meta http-equiv=\"refresh\" content=\"30\">";
@@ -482,6 +525,7 @@ void handleRoot() {
 }
 
 void handleJSON() {
+  UpdateSensorsBlocking();
   String json = "{";
   json += "\"temperature\": " + String(T_Ambient) + ",";
   json += "\"humidity\": " + String(PctHumidity);
