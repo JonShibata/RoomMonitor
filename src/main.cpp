@@ -4,6 +4,7 @@
 #include <ArduinoOTA.h>
 
 #include <ESP8266HTTPClient.h>
+#include <ESP8266WebServer.h>
 
 #include "HTTPSRedirect.h"
 #include "DebugMacros.h"
@@ -24,6 +25,7 @@
 const int httpsPort = 443;  // HTTPS = 443 and HTTP = 80
 
 HTTPSRedirect* client = nullptr;
+ESP8266WebServer server(80);
 
 // Define pin locations
 #define iPinDoor 5        // GPIO5:  D1
@@ -452,6 +454,50 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
   Serial.printf("\n\n");
 }
 
+void handleRoot() {
+  String html = "<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"30\"><title>Room Monitor</title></head><body>";
+  html += "<h1>Room Monitor Status</h1>";
+  html += "<p>Temperature: " + String(T_Ambient) + " &deg;C</p>";
+  html += "<p>Humidity: " + String(PctHumidity) + " %</p>";
+  
+  #ifdef USE_DOOR_SENSOR
+  html += "<p>Door Open: " + String(bDoorOpen ? "Yes" : "No") + "</p>";
+  #endif
+  
+  #ifdef USE_MOTION_SENSOR
+  html += "<p>Motion: " + String(bMotion ? "Yes" : "No") + "</p>";
+  #endif
+
+  #ifdef USE_LIGHT_SENSORS
+  html += "<p>Light 1: " + String(CntLightIntensity1) + "</p>";
+  html += "<p>Light 2: " + String(CntLightIntensity2) + "</p>";
+  #endif
+  
+  html += "</body></html>";
+  server.send(200, "text/html", html);
+}
+
+void handleJSON() {
+  String json = "{";
+  json += "\"temperature\": " + String(T_Ambient) + ",";
+  json += "\"humidity\": " + String(PctHumidity);
+  
+  #ifdef USE_DOOR_SENSOR
+  json += ",\"door_open\": " + String(bDoorOpen ? "true" : "false");
+  #endif
+  
+  #ifdef USE_MOTION_SENSOR
+  json += ",\"motion\": " + String(bMotion ? "true" : "false");
+  #endif
+
+  #ifdef USE_LIGHT_SENSORS
+  json += ",\"light1\": " + String(CntLightIntensity1);
+  json += ",\"light2\": " + String(CntLightIntensity2);
+  #endif
+  
+  json += "}";
+  server.send(200, "application/json", json);
+}
 
 void setup() {
   Serial.begin(115200);
@@ -484,10 +530,17 @@ void setup() {
 
   os_timer_setfn(&myTimer, timerCallback, NULL);
   os_timer_arm(&myTimer, 1000, true);
+
+  server.on("/", handleRoot);
+  server.on("/json", handleJSON);
+  server.onNotFound([]() { server.send(404, "text/plain", "404: Not Found"); });
+  server.begin();
+  Serial.println("HTTP server started");
 }
 
 
 void loop() {
+  server.handleClient();
 
   bool bUpdatePrev = bUpdate;
 
