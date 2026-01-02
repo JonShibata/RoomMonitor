@@ -455,8 +455,12 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
 }
 
 void handleRoot() {
-  String html = "<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"30\"><title>Room Monitor</title></head><body>";
-  html += "<h1>Room Monitor Status</h1>";
+  String html = "<!DOCTYPE html><html><head>";
+  html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
+  html += "<meta http-equiv=\"refresh\" content=\"30\">";
+  html += "<style>body { font-family: sans-serif; font-size: 1.5rem; padding: 20px; } h1 { font-size: 2rem; }</style>";
+  html += "<title>" + String(room_name) + "</title></head><body>";
+  html += "<h1>" + String(room_name) + " Status</h1>";
   html += "<p>Temperature: " + String(T_Ambient) + " &deg;C</p>";
   html += "<p>Humidity: " + String(PctHumidity) + " %</p>";
   
