@@ -3,7 +3,6 @@
 // configurations only used until first connection with google sheet
 // New calibrations are pulled down each time an update is made to the sheet
 bool bBeepEnabled = true;
-bool bDoorOpenDir = false;
 
 int CntLightOnThresh = 70;
 int CntWifiRetryAbort = 10;
@@ -16,33 +15,34 @@ int tLightRead = 700;
 int tMotionDelay = 600;
 int tPost = 30;
 
-// #define Basement
-#define BonusRoom
+String HomeAlertIP = "192.168.68.200";  // ip address of the home center
+
+#define Basement
+// #define BonusRoom
 // #define Garage
 // #define Test
 
 #ifdef Basement
-const char* room_name = "Basement";
-#define USE_DHT_SENSOR
-#define USE_DOOR_SENSOR
-bDoorOpenDir = true;
-#define USE_LIGHT_SENSORS
-#define USE_MOTION_SENSOR
+  const char* room_name = "Basement";
+  #define USE_DHT_SENSOR
+  #define USE_DOOR_SENSOR
+  bool bDoorOpenDir = true;
+  #define USE_LIGHT_SENSORS
+  #define USE_MOTION_SENSOR
 #endif
 
 #ifdef BonusRoom
-const char* room_name = "BonusRoom";
-#define USE_AHT_SENSOR 
-// AHT and door sensors configuration conflict
+  const char* room_name = "BonusRoom";
+  #define USE_AHT_SENSOR 
+  bool bDoorOpenDir = false;
+  // AHT and door sensors configuration conflict
 #endif
 
 #ifdef Garage
-const char* room_name = "Garage";
+  const char* room_name = "Garage";
 #endif
 
 #ifdef Test
-const char* room_name = "Test";
+  const char* room_name = "Test";
 #endif
-
-String HomeAlertIP = "192.168.68.200";  // ip address of the home center
 

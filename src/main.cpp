@@ -424,7 +424,7 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
       bDoorOpen = false;
       CntDoorOpen = 0;
     }
-    if (bBeepEnabled) {}
+    if (bBeepEnabled) {
       digitalWrite(iPinBeep, bBeep);
     }
     digitalWrite(iPinLED_Door, bDoorLED);
@@ -433,23 +433,23 @@ void timerCallback(void* pArg) {  // timer1 interrupt 1Hz
   #endif
 
   #ifdef USE_MOTION_SENSOR
-  bool bMotionLED;
-  if (digitalRead(iPinMotion)) {
-    bMotion = true;
-    bMotionLED = true;
-    CntMotionTimer = 0;
-  } else {
-    bMotionLED = false;
-    // tMotionDelay = seconds to latch motion detection
-    if (CntMotionTimer < tMotionDelay) {
-      CntMotionTimer++;
+    bool bMotionLED;
+    if (digitalRead(iPinMotion)) {
+      bMotion = true;
+      bMotionLED = true;
+      CntMotionTimer = 0;
     } else {
-      bMotion = false;
+      bMotionLED = false;
+      // tMotionDelay = seconds to latch motion detection
+      if (CntMotionTimer < tMotionDelay) {
+        CntMotionTimer++;
+      } else {
+        bMotion = false;
+      }
     }
-  }
-  digitalWrite(iPinLED_Motion, !bMotionLED);  // set LED (low side drive)
-  Serial.printf(" bMotion = %d", bMotion);
-  Serial.printf(" bMotionUpdate = %d", bMotionUpdate);
+    digitalWrite(iPinLED_Motion, !bMotionLED);  // set LED (low side drive)
+    Serial.printf(" bMotion = %d", bMotion);
+    Serial.printf(" bMotionUpdate = %d", bMotionUpdate);
   #endif
   Serial.printf("\n\n");
 }
