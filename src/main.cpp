@@ -14,6 +14,7 @@
 #include "ScriptConfig.h"
 #include "SheetConfig.h"
 #include "WifiConfig.h"
+#include "SupabaseConfig.h"
 
 
 // extern "C" {
@@ -328,6 +329,47 @@ void FindIntInString(String* strMain, String strFind, int* return_val) {
   }
 }
 
+void UpdateSupabase() {
+  String url = String(supabase_url) + "/rest/v1/" + String(room_name);
+  
+  WiFiClientSecure client_secure;
+  client_secure.setInsecure();
+  
+  HTTPClient http;
+  
+  Serial.print("Connecting to Supabase: ");
+  Serial.println(url);
+
+  if (http.begin(client_secure, url)) {
+    http.addHeader("apikey", supabase_anon_key);
+    http.addHeader("Authorization", "Bearer " + String(supabase_anon_key));
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Prefer", "return=minimal");
+
+    String payload = "{\"room_name\":\"" + String(room_name) + "\",";
+    payload += "\"Door\":" + String(bDoorOpen ? "true" : "false") + ",";
+    payload += "\"Temperature\":" + String(T_Ambient) + ",";
+    payload += "\"Humidity\":" + String(PctHumidity) + ",";
+    payload += "\"Motion\":" + String(bMotion ? "true" : "false") + ",";
+    payload += "\"Light1\":" + String(CntLightIntensity1) + ",";
+    payload += "\"Light2\":" + String(CntLightIntensity2) + ",";
+    payload += "\"LightAlert\":" + String(bLightAlert ? "true" : "false") + ",";
+    payload += "\"DoorAlert\":" + String(bDoorAlert ? "true" : "false") + ",";
+    payload += "\"LightAlertTrig\":" + String(bLightAlertTrig ? "true" : "false") + ",";
+    payload += "\"DoorAlertTrig\":" + String(bDoorAlertTrig ? "true" : "false") + ",";
+    payload += "\"Daylight\":" + String(bDaylight ? "true" : "false") + "}";
+
+    int httpCode = http.POST(payload);
+    
+    if (httpCode > 0) {
+      Serial.printf("Supabase POST code: %d\n", httpCode);
+    } else {
+      Serial.printf("Supabase POST failed, error: %s\n", http.errorToString(httpCode).c_str());
+    }
+    http.end();
+  }
+}
+
 void UpdateSheets() {
 
   String url_string;
@@ -505,6 +547,7 @@ void handleRoot() {
   html += "<title>" + String(room_name) + "</title></head><body>";
   html += "<h1>" + String(room_name) + " Status</h1>";
   html += "<p>Temperature: " + String(T_Ambient) + " &deg;C</p>";
+  html += "<p>Temperature: " + String((T_Ambient * 9.0F / 5.0F) + 32.0F) + " &deg;F</p>";
   html += "<p>Humidity: " + String(PctHumidity) + " %</p>";
   
   #ifdef USE_DOOR_SENSOR
@@ -638,6 +681,7 @@ void loop() {
 
     UpdateHomeAlerts();
     UpdateSheets();
+    UpdateSupabase();
 
     bDoorAlertUpdate = bDoorAlert;
     bMotionUpdate = bMotion;

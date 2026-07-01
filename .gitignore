@@ -34,4 +34,5 @@
 # Shibata
 src/WifiConfig.h
 src/SheetConfig.h
+src/SupabaseConfig.h
 .pio/

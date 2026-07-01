@@ -1,0 +1,4 @@
+// SupabaseConfig.h
+
+const char* supabase_url = "https://yourproject.supabase.co";
+const char* supabase_anon_key = "YOUR_SUPABASE_ANON_KEY";

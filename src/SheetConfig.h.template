@@ -1,0 +1,2 @@
+const char* host = "script.google.com";
+String sheet_id = "YOUR_GOOGLE_SHEET_ID";
