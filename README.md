@@ -14,18 +14,17 @@ sensor on the door and creating an audible tone when the door is ajar. <br>
 I realized that I would also like to prevent them from leaving the lights on the basement. I added
 some
 light sensors to the project. To prevent false alarms during the day I needed to know if it was daylight
-outside. So the project connects to a google sheet that uses a web api to get sunrise and sunset times.
-Adding some functionality to the google sheet allowed me to send myself an email if the light was left
-on or the door is left open.
+outside. The project connects to Supabase for data logging and provides a web interface for real-time
+monitoring and configuration.
 To prevent false alarms a motion sensor was added to determine if someone is really in the basement.
 <br>
 
 At some point I thought it would be a fun idea to monitor the temperature change if the door is left
 open in
-winter time. I added a temperature and humidity sensor and started pushing the data to the google sheet.
+winter time. I added a temperature and humidity sensor and started pushing the data to Supabase.
 
 
-## Dependecies
+## Dependencies
 
 This arduino repo is configured to work with the following Adafruit libraries
 
@@ -46,16 +45,13 @@ const char *ssid     = "WIFI_NAME";
 const char *password = "WIFI_PASSWORD";
 ```
 
+## OTA Updates (PlatformIO)
 
-## SheetConfig.h
+This project supports Over-The-Air (OTA) updates. To update the firmware wirelessly:
 
-This project requires a file named SheetConfig.h in the same directory as the main file. This file should contain the following code with your google sheet id.
-
-```cpp
-const char* host = "script.google.com";
-
-String sheet_id = "abdefghijklmnopqrstuvwxyz";
-```
+1. Ensure the device is powered on and connected to the same network as your PC.
+2. In PlatformIO, run the target `UploadOTA` instead of the standard `Upload`.
+3. To update the web interface files, run the `Upload Filesystem Image` task to flash the `/data` folder to LittleFS.
 
 
 

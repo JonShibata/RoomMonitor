@@ -2,6 +2,7 @@
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <LittleFS.h>
 
 #include <ESP8266HTTPClient.h>
 #include <ESP8266WebServer.h>
@@ -92,8 +93,8 @@ int CntMotionTimer = 0;
 float PctHumidity = 0.0F;
 float T_Ambient = 0.0F;
 
-unsigned long tReadLightsStart = 0UL;
-unsigned long tWiFiConnectStart = 0UL;
+unsigned long tLastUIRead = 0UL;
+unsigned long tUIUpdateInterval = 30000; // 30 seconds
 
 os_timer_t myTimer;
 
@@ -339,13 +340,13 @@ void UpdateSupabase() {
   
   Serial.print("Connecting to Supabase: ");
   Serial.println(url);
-
+  
   if (http.begin(client_secure, url)) {
     http.addHeader("apikey", supabase_anon_key);
     http.addHeader("Authorization", "Bearer " + String(supabase_anon_key));
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Prefer", "return=minimal");
-
+  
     String payload = "{\"room_name\":\"" + String(room_name) + "\",";
     payload += "\"Door\":" + String(bDoorOpen ? "true" : "false") + ",";
     payload += "\"Temperature\":" + String(T_Ambient) + ",";
@@ -358,7 +359,7 @@ void UpdateSupabase() {
     payload += "\"LightAlertTrig\":" + String(bLightAlertTrig ? "true" : "false") + ",";
     payload += "\"DoorAlertTrig\":" + String(bDoorAlertTrig ? "true" : "false") + ",";
     payload += "\"Daylight\":" + String(bDaylight ? "true" : "false") + "}";
-
+  
     int httpCode = http.POST(payload);
     
     if (httpCode > 0) {
@@ -366,6 +367,22 @@ void UpdateSupabase() {
     } else {
       Serial.printf("Supabase POST failed, error: %s\n", http.errorToString(httpCode).c_str());
     }
+    http.end();
+  }
+}
+
+void UpdateSupabaseReboot(String message) {
+  String url = String(supabase_url) + "/rest/v1/" + String(room_name);
+  WiFiClientSecure client_secure;
+  client_secure.setInsecure();
+  HTTPClient http;
+  if (http.begin(client_secure, url)) {
+    http.addHeader("apikey", supabase_anon_key);
+    http.addHeader("Authorization", "Bearer " + String(supabase_anon_key));
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Prefer", "return=minimal");
+    String payload = "{\"room_name\":\"" + String(room_name) + "\", \"status_message\":\"" + message + "\"}";
+    http.POST(payload);
     http.end();
   }
 }
@@ -538,33 +555,115 @@ void UpdateSensorsBlocking() {
   }
 }
 
+void handleCSS() {
+  if (!LittleFS.exists("/style.css")) {
+    server.send(404, "text/plain", "CSS file not found");
+    return;
+  }
+  server.send(200, "text/css", LittleFS.open("/style.css", "r").readString());
+}
+
+void removeSection(String &html, String startTag, String endTag) {
+  int start = html.indexOf(startTag);
+  int end = html.indexOf(endTag);
+  if (start != -1 && end != -1 && end > start) {
+    html.remove(start, end - start + endTag.length());
+  }
+}
+
 void handleRoot() {
-  UpdateSensorsBlocking();
-  String html = "<!DOCTYPE html><html><head>";
-  html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-  html += "<meta http-equiv=\"refresh\" content=\"30\">";
-  html += "<style>body { font-family: sans-serif; font-size: 1.5rem; padding: 20px; } h1 { font-size: 2rem; }</style>";
-  html += "<title>" + String(room_name) + "</title></head><body>";
-  html += "<h1>" + String(room_name) + " Status</h1>";
-  html += "<p>Temperature: " + String(T_Ambient) + " &deg;C</p>";
-  html += "<p>Temperature: " + String((T_Ambient * 9.0F / 5.0F) + 32.0F) + " &deg;F</p>";
-  html += "<p>Humidity: " + String(PctHumidity) + " %</p>";
+  unsigned long now = millis();
+  if (now - tLastUIRead > tUIUpdateInterval) {
+    bUpdateTrig = true;
+    tLastUIRead = now;
+    Serial.println("UI requested sensor update");
+  }
+
+  if (!LittleFS.exists("/index.html")) {
+    server.send(500, "text/plain", "Index file not found in LittleFS");
+    return;
+  }
   
-  #ifdef USE_DOOR_SENSOR
-  html += "<p>Door Open: " + String(bDoorOpen ? "Yes" : "No") + "</p>";
+  String html = LittleFS.open("/index.html", "r").readString();
+  html.replace("{{ROOM_NAME}}", String(room_name));
+  html.replace("{{TEMP_F}}", String((T_Ambient * 9.0F / 5.0F) + 32.0F, 1));
+  html.replace("{{TEMP_C}}", String(T_Ambient, 1));
+  html.replace("{{HUMIDITY}}", String(PctHumidity));
+  
+  // Basic replacements for status values
+  html.replace("{{DOOR_STAT}}", bDoorOpen ? "Open" : "Closed");
+  html.replace("{{MOTION_STAT}}", bMotion ? "Detected" : "Clear");
+  html.replace("{{LIGHT1}}", String(CntLightIntensity1));
+  html.replace("{{LIGHT2}}", String(CntLightIntensity2));
+  
+  // Conditional section removal
+  #ifndef USE_DOOR_SENSOR
+    removeSection(html, "<!-- DOOR_SECTION -->", "<!-- END_DOOR_SECTION -->");
   #endif
   
-  #ifdef USE_MOTION_SENSOR
-  html += "<p>Motion: " + String(bMotion ? "Yes" : "No") + "</p>";
+  #ifndef USE_MOTION_SENSOR
+    removeSection(html, "<!-- MOTION_SECTION -->", "<!-- END_MOTION_SECTION -->");
   #endif
 
-  #ifdef USE_LIGHT_SENSORS
-  html += "<p>Light 1: " + String(CntLightIntensity1) + "</p>";
-  html += "<p>Light 2: " + String(CntLightIntensity2) + "</p>";
+  #ifndef USE_LIGHT_SENSORS
+    removeSection(html, "<!-- LIGHT_SECTION -->", "<!-- END_LIGHT_SECTION -->");
   #endif
   
-  html += "</body></html>";
   server.send(200, "text/html", html);
+}
+
+void handleConfig() {
+  if (!LittleFS.exists("/config.html")) {
+    server.send(500, "text/plain", "Config file not found in LittleFS");
+    return;
+  }
+
+  String html = LittleFS.open("/config.html", "r").readString();
+  
+  // Basic replacements
+  html.replace("{{ROOM_NAME}}", String(room_name));
+  html.replace("{{BEEP_CHECKED}}", bBeepEnabled ? "checked" : "");
+  html.replace("{{CNT_WIFI_ABORT}}", String(CntWifiRetryAbort));
+  html.replace("{{T_POST}}", String(tPost));
+  html.replace("{{HOME_ALERT_IP}}", String(HomeAlertIP));
+  
+  // Sensor value replacements
+  html.replace("{{T_DOOR_ALERT}}", String(tDoorOpenAlertDelay));
+  html.replace("{{T_DOOR_BEEP}}", String(tDoorOpenBeepDelay));
+  html.replace("{{CNT_LIGHT_ON}}", String(CntLightOnThresh));
+  html.replace("{{T_LIGHT_ALERT}}", String(tLightAlertThresh));
+  html.replace("{{T_LIGHT_READ}}", String(tLightRead));
+  html.replace("{{T_MOTION_DELAY}}", String(tMotionDelay));
+
+  // Conditional section removal
+  #ifndef USE_DOOR_SENSOR
+    removeSection(html, "<!-- DOOR_SECTION -->", "<!-- END_DOOR_SECTION -->");
+  #endif
+
+  #ifndef USE_LIGHT_SENSORS
+    removeSection(html, "<!-- LIGHT_SECTION -->", "<!-- END_LIGHT_SECTION -->");
+  #endif
+
+  #ifndef USE_MOTION_SENSOR
+    removeSection(html, "<!-- MOTION_SECTION -->", "<!-- END_MOTION_SECTION -->");
+  #endif
+  
+  server.send(200, "text/html", html);
+}
+
+void handleSave() {
+  if (server.hasArg("bBeepEnabled")) bBeepEnabled = server.arg("bBeepEnabled") == "on";
+  if (server.hasArg("CntLightOnThresh")) CntLightOnThresh = server.arg("CntLightOnThresh").toInt();
+  if (server.hasArg("CntWifiRetryAbort")) CntWifiRetryAbort = server.arg("CntWifiRetryAbort").toInt();
+  if (server.hasArg("tDoorOpenAlertDelay")) tDoorOpenAlertDelay = server.arg("tDoorOpenAlertDelay").toInt();
+  if (server.hasArg("tDoorOpenBeepDelay")) tDoorOpenBeepDelay = server.arg("tDoorOpenBeepDelay").toInt();
+  if (server.hasArg("tLightAlertThresh")) tLightAlertThresh = server.arg("tLightAlertThresh").toInt();
+  if (server.hasArg("tLightRead")) tLightRead = server.arg("tLightRead").toInt();
+  if (server.hasArg("tMotionDelay")) tMotionDelay = server.arg("tMotionDelay").toInt();
+  if (server.hasArg("tPost")) tPost = server.arg("tPost").toInt();
+  if (server.hasArg("HomeAlertIP")) HomeAlertIP = server.arg("HomeAlertIP");
+
+  server.send(200, "text/html", "<html style=\"font-family:sans-serif; text-align:center; padding:50px;\"><h1 style=\"color:#2c3e50\">Settings Saved!</h1><a href=\"/\" style=\"color:#2980b9\">Back to Status</a></body></html>");
 }
 
 void handleJSON() {
@@ -593,6 +692,12 @@ void handleJSON() {
 void setup() {
   Serial.begin(115200);
 
+  if (!LittleFS.begin()) {
+    Serial.println("LittleFS Mount Failed");
+  } else {
+    Serial.println("LittleFS Mounted Successfully");
+  }
+
   #ifdef USE_AHT_SENSOR
     aht.begin();
     Wire.begin(iPinSDA, iPinSCL);
@@ -619,11 +724,23 @@ void setup() {
 
   pinMode(iPinBeep, OUTPUT);
 
+  // Perform initial blocking read so first page load isn't zero
+  UpdateSensorsBlocking();
+
+  // Send Reboot Notification
+  if (WiFi.status() == WL_CONNECTED) {
+    String rebootMsg = "Room " + String(room_name) + " has rebooted.";
+    UpdateSupabaseReboot(rebootMsg);
+  }
+
   os_timer_setfn(&myTimer, timerCallback, NULL);
   os_timer_arm(&myTimer, 1000, true);
 
   server.on("/", handleRoot);
   server.on("/json", handleJSON);
+  server.on("/config.html", handleConfig);
+  server.on("/save", handleSave);
+  server.on("/style.css", handleCSS);
   server.onNotFound([]() { server.send(404, "text/plain", "404: Not Found"); });
   server.begin();
   Serial.println("HTTP server started");
@@ -674,13 +791,16 @@ void loop() {
 
   if (WiFi.status() != WL_CONNECTED) {
     ConnectToWiFi();
+    if (WiFi.status() == WL_CONNECTED) {
+      UpdateSupabaseReboot("Room " + String(room_name) + " internet connection restored.");
+    }
   }
 
   if (bUpdate && bUpdateLightsCpt && bUpdateTempCpt && bUpdateHumCpt &&
       WiFi.status() == WL_CONNECTED) {
 
     UpdateHomeAlerts();
-    UpdateSheets();
+    // UpdateSheets(); // Removed to stop posting to Google Sheets
     UpdateSupabase();
 
     bDoorAlertUpdate = bDoorAlert;

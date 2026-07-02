@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ROOM_NAME}} Status</title>
+    <link rel="stylesheet" href="/style.css">
+    <meta http-equiv="refresh" content="30">
+</head>
+<body>
+    <div class="card">
+        <h1>{{ROOM_NAME}}</h1>
+        <div class="stat"><span class="label">Temperature</span><span class="value">{{TEMP_F}} &deg;F / {{TEMP_C}} &deg;C</span></div>
+        <div class="stat"><span class="label">Humidity</span><span class="value">{{HUMIDITY}}%</span></div>
+        
+        <!-- DOOR_SECTION -->
+        <div class="stat"><span class="label">Door</span><span class="value">{{DOOR_STAT}}</span></div>
+        <!-- END_DOOR_SECTION -->
+        
+        <!-- MOTION_SECTION -->
+        <div class="stat"><span class="label">Motion</span><span class="value">{{MOTION_STAT}}</span></div>
+        <!-- END_MOTION_SECTION -->
+        
+        <!-- LIGHT_SECTION -->
+        <div class="stat"><span class="label">Light 1</span><span class="value">{{LIGHT1}}</span></div>
+        <div class="stat"><span class="label">Light 2</span><span class="value">{{LIGHT2}}</span></div>
+        <!-- END_LIGHT_SECTION -->
+        
+        <div class="refresh">Auto-refreshing every 30s</div>
+        <div class="nav"><a href="/config.html">⚙️ Configuration</a></div>
+    </div>
+</body>
+</html>
