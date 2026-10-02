@@ -5,29 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ROOM_NAME}} Status</title>
     <link rel="stylesheet" href="/style.css">
-    <meta http-equiv="refresh" content="30">
 </head>
 <body>
     <div class="card">
-        <h1>{{ROOM_NAME}}</h1>
-        <div class="stat"><span class="label">Temperature</span><span class="value">{{TEMP_F}} &deg;F / {{TEMP_C}} &deg;C</span></div>
-        <div class="stat"><span class="label">Humidity</span><span class="value">{{HUMIDITY}}%</span></div>
+        <h1 id="room-name">{{ROOM_NAME}}</h1>
+        <div class="stat"><span class="label">Temperature</span><span class="value" id="temp">Loading...</span></div>
+        <div class="stat"><span class="label">Humidity</span><span class="value" id="humidity">Loading...</span></div>
         
         <!-- DOOR_SECTION -->
-        <div class="stat"><span class="label">Door</span><span class="value">{{DOOR_STAT}}</span></div>
+        <div class="stat" id="door-section"><span class="label">Door</span><span class="value" id="door">Loading...</span></div>
         <!-- END_DOOR_SECTION -->
         
         <!-- MOTION_SECTION -->
-        <div class="stat"><span class="label">Motion</span><span class="value">{{MOTION_STAT}}</span></div>
+        <div class="stat" id="motion-section"><span class="label">Motion</span><span class="value" id="motion">Loading...</span></div>
         <!-- END_MOTION_SECTION -->
         
         <!-- LIGHT_SECTION -->
-        <div class="stat"><span class="label">Light 1</span><span class="value">{{LIGHT1}}</span></div>
-        <div class="stat"><span class="label">Light 2</span><span class="value">{{LIGHT2}}</span></div>
+        <div class="stat" id="light1-section"><span class="label">Light 1</span><span class="value" id="light1">Loading...</span></div>
+        <div class="stat" id="light2-section"><span class="label">Light 2</span><span class="value" id="light2">Loading...</span></div>
         <!-- END_LIGHT_SECTION -->
         
-        <div class="refresh">Auto-refreshing every 30s</div>
         <div class="nav"><a href="/config.html">⚙️ Configuration</a></div>
     </div>
+
+    <script>
+        function updateUI(data) {
+            if (data.temperature !== undefined) {
+                const tempC = data.temperature;
+                const tempF = (tempC * 9/5 + 32).toFixed(1);
+                document.getElementById('temp').innerHTML = tempF + ' °F / ' + tempC.toFixed(1) + ' °C';
+            }
+            if (data.humidity !== undefined) {
+                document.getElementById('humidity').innerHTML = data.humidity.toFixed(1) + '%';
+            }
+            if (data.door_open !== undefined) {
+                document.getElementById('door').innerHTML = data.door_open ? 'Open' : 'Closed';
+            }
+            if (data.motion !== undefined) {
+                document.getElementById('motion').innerHTML = data.motion ? 'Detected' : 'Clear';
+            }
+            if (data.light1 !== undefined) {
+                document.getElementById('light1').innerHTML = data.light1;
+            }
+            if (data.light2 !== undefined) {
+                document.getElementById('light2').innerHTML = data.light2;
+            }
+        }
+
+        setInterval(() => {
+            fetch('/json').then(response => response.json()).then(data => updateUI(data));
+        }, 60000);
+
+        fetch('/json').then(response => response.json()).then(data => updateUI(data));
+
+        if (!!window.EventSource) {
+            var source = new EventSource('/events');
+            source.addEventListener('update', function(e) {
+                updateUI(JSON.parse(e.data));
+            }, false);
+        }
+    </script>
 </body>
 </html>

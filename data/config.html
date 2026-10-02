@@ -10,7 +10,7 @@
     <div class="card">
         <h1>Configuration</h1>
         <form action="/save" method="POST">
-            <div class="form-group"><label>Beep Enabled</label><input type="checkbox" name="bBeepEnabled" {{BEEP_CHECKED}}></div>
+            <div class="form-group"><label>Beep Enabled</label><input type="checkbox" name="bBeepEnabled" value="on" {{BEEP_CHECKED}}></div>
             
             <!-- DOOR_SECTION -->
             <div class="form-group"><label>Door Open Alert Delay</label><input type="number" name="tDoorOpenAlertDelay" value="{{T_DOOR_ALERT}}"></div>
