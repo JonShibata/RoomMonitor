@@ -30,7 +30,9 @@ public:
     }
 
     void update() override {
-        currentIntensity = analogRead(analogPin);
+        int val = analogRead(analogPin);
+        Serial.printf("DEBUG: LightSensor read pin %d: %d\n", analogPin, val);
+        currentIntensity = val;
         digitalWrite(pinControl, LOW);
         ready = true;
     }

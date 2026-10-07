@@ -18,7 +18,7 @@ public:
         : pinInput(pIn), pinLED(pLED), motionDetected(false), motionTimer(0), motionDelay(delaySecs), ready(false) {}
 
     void begin() {
-        pinMode(pinInput, INPUT_PULLUP);
+        pinMode(pinInput, INPUT);
         pinMode(pinLED, OUTPUT);
         digitalWrite(pinLED, HIGH); // set to off (low side drive)
     }
@@ -32,7 +32,7 @@ public:
     }
 
     void update() {
-        if (!digitalRead(pinInput)) {
+        if (digitalRead(pinInput)) {
             motionDetected = true;
             motionTimer = 0;
         } else {

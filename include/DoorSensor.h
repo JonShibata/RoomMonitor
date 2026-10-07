@@ -33,7 +33,7 @@ public:
     }
 
     void update() {
-       if (digitalRead(pinInput) == LOW) {
+       if (digitalRead(pinInput) == true) {
             doorOpen = true;
             if (openCount < alertDelay) {
                 openCount++;

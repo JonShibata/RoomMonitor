@@ -16,8 +16,8 @@ public:
     void evaluate(RoomState& state, bool isDaylight, int lightThresh) {
         // Light Alert Logic
         bool currentLightAlert = (!isDaylight && !state.motion.getValue()
-                                  && (state.light1.getValue() > lightThresh
-                                      || state.light2.getValue() > lightThresh));
+                                   && (state.lightArbiter->getValue(0) > lightThresh
+                                       || state.lightArbiter->getValue(1) > lightThresh));
         
         lightAlert = currentLightAlert;
 

@@ -17,8 +17,8 @@ int tPost = 3600;
 
 String HomeAlertIP = "192.168.68.200";  // ip address of the home center
 
-// #define Basement
-#define BonusRoom
+#define Basement
+// #define BonusRoom
 // #define Garage
 // #define Test
 

@@ -55,7 +55,7 @@ DoorSensor doorSensor(pins.doorPin,
                       config.settings.doorOpenAlertDelay,
                       config.settings.doorOpenDir);
 
-RoomState roomState(&tempHumSensor, &motionSensor, &doorSensor, &light1, &light2);
+RoomState roomState(&tempHumSensor, &motionSensor, &doorSensor, &lightArbiter);
 AlertManager alertManager;
 
 os_timer_t myTimer;
@@ -67,8 +67,8 @@ void pushUpdate() {
     doc["humidity"] = roomState.humidity.getValue();
     doc["door_open"] = roomState.doorOpen.getValue();
     doc["motion"] = roomState.motion.getValue();
-    doc["light1"] = roomState.light1.getValue();
-    doc["light2"] = roomState.light2.getValue();
+    doc["light1"] = roomState.lightArbiter->getValue(0);
+    doc["light2"] = roomState.lightArbiter->getValue(1);
 
     String payload;
     serializeJson(doc, payload);
@@ -94,8 +94,8 @@ void UpdateSupabase() {
         doc["Temperature"] = roomState.temperature.getValue();
         doc["Humidity"] = roomState.humidity.getValue();
         doc["Motion"] = roomState.motion.getValue();
-        doc["Light1"] = roomState.light1.getValue();
-        doc["Light2"] = roomState.light2.getValue();
+        doc["Light1"] = roomState.lightArbiter->getValue(0);
+        doc["Light2"] = roomState.lightArbiter->getValue(1);
         doc["LightAlert"] = alertManager.isLightAlert();
         doc["DoorAlert"] = alertManager.isDoorAlert();
         doc["Daylight"] = roomState.isDaylight;
@@ -124,8 +124,8 @@ void UpdateSheets() {
         + "&Temperature=" + String(roomState.temperature.getValue())
         + "&Humidity=" + String(roomState.humidity.getValue())
         + "&Motion=" + String(roomState.motion.getValue())
-        + "&Light1=" + String(roomState.light1.getValue())
-        + "&Light2=" + String(roomState.light2.getValue())
+        + "&Light1=" + String(roomState.lightArbiter->getValue(0))
+        + "&Light2=" + String(roomState.lightArbiter->getValue(1))
         + "&LightAlert=" + String(alertManager.isLightAlert())
         + "&DoorAlert=" + String(alertManager.isDoorAlert())
         + "&Daylight=" + String(roomState.isDaylight) + "&";
@@ -158,6 +158,7 @@ void removeSection(String &html, const String &sectionName) {
 }
 
 void handleRoot(AsyncWebServerRequest *request) {
+    Serial.println("DEBUG: Web request received: /root");
     roomState.triggerAll();
     if (!LittleFS.exists("/index.html")) {
         request->send(500, "text/plain", "Index file not found");
@@ -181,14 +182,16 @@ void handleRoot(AsyncWebServerRequest *request) {
 
 
 void handleJSON(AsyncWebServerRequest *request) {
+    Serial.printf("DEBUG: Web request received: /json IP: %s\n",
+                   request->client()->remoteIP().toString().c_str());
     roomState.triggerAll();
     StaticJsonDocument<256> doc;
     doc["temperature"] = roomState.temperature.getValue();
     doc["humidity"] = roomState.humidity.getValue();
     doc["door_open"] = roomState.doorOpen.getValue();
     doc["motion"] = roomState.motion.getValue();
-    doc["light1"] = roomState.light1.getValue();
-    doc["light2"] = roomState.light2.getValue();
+    doc["light1"] = roomState.lightArbiter->getValue(0);
+    doc["light2"] = roomState.lightArbiter->getValue(1);
 
     String payload;
     serializeJson(doc, payload);
@@ -310,6 +313,7 @@ void setup() {
     light2.begin();
     lightArbiter.addSensor(&light1);
     lightArbiter.addSensor(&light2);
+    lightArbiter.setMeasurementDelay(config.settings.lightRead);
     
     Serial.println("Initializing Temp/Hum Sensor...");
     tempHumSensor.begin();
@@ -338,7 +342,7 @@ void setup() {
     
     os_timer_setfn(&myTimer, timerCallback, NULL);
     os_timer_arm(&myTimer, 1000, true);
-    
+
     server.on("/", handleRoot);
     server.on("/json", handleJSON);
     server.on("/config.html", handleConfig);
@@ -368,8 +372,10 @@ void loop() {
     
     if (bPushNeeded || alertManager.isLightAlert()) {
         if (roomState.lastTriggerAllMillis == 0 || millis() - roomState.lastTriggerAllMillis > 5000) {
+            Serial.printf("DEBUG: Refresh triggered. bPushNeeded: %s, LightAlert: %s\n", 
+                          bPushNeeded ? "YES" : "NO", 
+                          alertManager.isLightAlert() ? "YES" : "NO");
             roomState.triggerAll();
-            lightArbiter.requestReading();
         }
     }
     
@@ -396,8 +402,8 @@ void loop() {
             Serial.print(roomState.humidity.isReady() ? "H:" : "H!");
             Serial.print(roomState.motion.isReady() ? "M:" : "M!");
             Serial.print(roomState.doorOpen.isReady() ? "D:" : "D!");
-            Serial.print(roomState.light1.isReady() ? "L1:" : "L1!");
-            Serial.println(roomState.light2.isReady() ? "L2:" : "L2!");
+            Serial.print(roomState.lightArbiter->isReadingReady() ? "L:" : "L!");
+            Serial.println();
         }
     }
 
@@ -408,14 +414,12 @@ void loop() {
         if (roomState.humidity.hasChanges()) Serial.print("H ");
         if (roomState.motion.hasChanges()) Serial.print("M ");
         if (roomState.doorOpen.hasChanges()) Serial.print("D ");
-        if (roomState.light1.hasChanges()) Serial.print("L1 ");
-        if (roomState.light2.hasChanges()) Serial.print("L2 ");
         Serial.println();
         
         Serial.printf("Values: T:%.1f H:%.1f M:%d D:%d L1:%d L2:%d\n", 
             roomState.temperature.getValue(), roomState.humidity.getValue(),
             roomState.motion.getValue(), roomState.doorOpen.getValue(),
-            roomState.light1.getValue(), roomState.light2.getValue());
+            roomState.lightArbiter->getValue(0), roomState.lightArbiter->getValue(1));
 
         pushUpdate();
         roomState.clearAllChanges();

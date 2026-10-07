@@ -8,20 +8,34 @@
 class LightArbiter : public BaseSensor {
 private:
     std::vector<LightSensor*> sensors;
+    std::vector<int> lastValues;
     int currentSensorIdx;
     unsigned long waitStart;
-    const unsigned long measurementDelay = 700; 
+    unsigned long measurementDelay = 700; 
     bool updating;
 
 public:
     LightArbiter() : currentSensorIdx(-1), waitStart(0), updating(false) {}
 
+    void setMeasurementDelay(unsigned long delay) {
+        measurementDelay = delay;
+    }
+
     void addSensor(LightSensor* s) {
         sensors.push_back(s);
+        lastValues.push_back(0);
+    }
+
+    int getValue(int index) const {
+        if (index >= 0 && index < (int)lastValues.size()) {
+            return lastValues[index];
+        }
+        return 0;
     }
 
     void requestReading() override {
         if (!updating) {
+            Serial.println("DEBUG: LightArbiter state -> UPDATING (Requested)");
             updating = true;
             currentSensorIdx = 0;
             if (sensors.size() > 0) {
@@ -33,53 +47,34 @@ public:
 
     bool isReadingReady() const override {
         if (!updating) return true;
-        for (auto s : sensors) {
-            if (!s->isReadingReady()) return false;
-        }
-        return true;
+        return false;
     }
 
     void update() override {
         if (!updating) return;
 
         if (currentSensorIdx >= (int)sensors.size()) {
+            Serial.println("DEBUG: LightArbiter state -> IDLE (Finished)");
             updating = false;
             return;
         }
 
-        LightSensor* s = sensors[currentSensorIdx];
-        
-        // 1. Check for total timeout (sensor missing or hardware hang)
-        // Only trigger if we've waited significantly longer than the measurement delay
-        if (millis() - waitStart > 2000) {
-            // Only log if we are actually forcing a state change
-            if (!s->isReadingReady()) {
-                Serial.printf("DEBUG: Light sensor %d timeout, forcing ready.\n", currentSensorIdx + 1);
-            }
-            s->update(); 
-            currentSensorIdx++;
-            if (currentSensorIdx < (int)sensors.size()) {
-                sensors[currentSensorIdx]->requestReading();
-                waitStart = millis();
-            } else {
-                updating = false;
-            }
-            return;
-        }
-
-        // 2. Normal power-up delay (700ms)
         if (millis() - waitStart < measurementDelay) {
             return;
         }
 
-        // 3. Normal read
+        LightSensor* s = sensors[currentSensorIdx];
         s->update(); 
+        int val = s->getIntensity();
+        Serial.printf("DEBUG: LightArbiter read sensor %d: %d\n", currentSensorIdx, val);
+        lastValues[currentSensorIdx] = val;
         
         currentSensorIdx++;
         if (currentSensorIdx < (int)sensors.size()) {
             sensors[currentSensorIdx]->requestReading();
             waitStart = millis();
         } else {
+            Serial.println("DEBUG: LightArbiter state -> IDLE (All read)");
             updating = false;
         }
     }

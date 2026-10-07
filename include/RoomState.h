@@ -15,8 +15,8 @@ public:
     SensorChannel<float> humidity;
     SensorChannel<bool> motion;
     SensorChannel<bool> doorOpen;
-    SensorChannel<int> light1;
-    SensorChannel<int> light2;
+    
+    LightArbiter* lightArbiter;
 
     bool isDaylight = false;
     unsigned long lastPostMillis = 0;
@@ -24,16 +24,14 @@ public:
     int loopCount = 0;
 
     RoomState(TempHumiditySensor* th,
-              MotionSensor* m,
-              DoorSensor* d,
-              LightSensor* l1,
-              LightSensor* l2)
+               MotionSensor* m,
+               DoorSensor* d,
+               LightArbiter* arbiter)
         : temperature(th, -99.0f, false, 0.1f),
           humidity(th, -99.0f, false, 0.5f),
           motion(m, false, true),
           doorOpen(d, false, true),
-          light1(l1, 0),
-          light2(l2, 0),
+          lightArbiter(arbiter),
           lastPostMillis(0),
           loopCount(0) {}
 
@@ -43,7 +41,7 @@ public:
         humidity.trigger();
         motion.trigger();
         doorOpen.trigger();
-        // Light sensors are managed by the Arbiter, not triggered individually
+        lightArbiter->requestReading();
     }
 
     void updateAll() {
@@ -53,24 +51,19 @@ public:
         humidity.update([](BaseSensor* s) { return ((TempHumiditySensor*)s)->getHumidity(); });
         motion.update([](BaseSensor* s) { return ((MotionSensor*)s)->isMotionDetected(); });
         doorOpen.update([](BaseSensor* s) { return ((DoorSensor*)s)->isDoorOpen(); });
-        light1.update([](BaseSensor* s) { return ((LightSensor*)s)->getIntensity(); });
-        light2.update([](BaseSensor* s) { return ((LightSensor*)s)->getIntensity(); });
     }
-
 
     bool anyChanges() const {
         return temperature.hasChanges()
                || humidity.hasChanges()
                || motion.hasChanges()
-               || doorOpen.hasChanges()
-               || light1.hasChanges()
-               || light2.hasChanges();
+               || doorOpen.hasChanges();
     }
 
     bool allReady() const {
         return temperature.isReady() && humidity.isReady() && 
                motion.isReady() && doorOpen.isReady() && 
-               light1.isReady() && light2.isReady();
+               lightArbiter->isReadingReady();
     }
 
     void clearAllChanges() {
@@ -78,8 +71,6 @@ public:
         humidity.clearChanges();
         motion.clearChanges();
         doorOpen.clearChanges();
-        light1.clearChanges();
-        light2.clearChanges();
     }
 };
 

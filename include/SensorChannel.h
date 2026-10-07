@@ -44,7 +44,9 @@ public:
     }
 
     void update(std::function<T(BaseSensor*)> getValueFunc) {
-        sensor->update();
+        if (synchronous || requested) {
+            sensor->update();
+        }
         
         if (synchronous) {
             T newValue = getValueFunc(sensor);
