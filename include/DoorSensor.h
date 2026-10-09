@@ -9,14 +9,14 @@ private:
     int pinInput;
     int pinLED;
     bool doorOpen;
-    int openCount;
+    unsigned long doorOpenStartTime;
     int alertDelay;
     bool ready;
     bool openDir;
 
 public:
     DoorSensor(int pIn, int pLED, int aDelay, bool dir) 
-        : pinInput(pIn), pinLED(pLED), doorOpen(false), openCount(0), alertDelay(aDelay), ready(false), openDir(dir) {}
+        : pinInput(pIn), pinLED(pLED), doorOpen(false), doorOpenStartTime(0), alertDelay(aDelay), ready(false), openDir(dir) {}
 
     void begin() {
         pinMode(pinInput, INPUT_PULLUP);
@@ -33,20 +33,23 @@ public:
     }
 
     void update() {
-       if (digitalRead(pinInput) == true) {
-            doorOpen = true;
-            if (openCount < alertDelay) {
-                openCount++;
+        if (digitalRead(pinInput) == true) {
+            if (!doorOpen) {
+                doorOpenStartTime = millis();
             }
+            doorOpen = true;
         } else {
             doorOpen = false;
-            openCount = 0;
+            doorOpenStartTime = 0;
         }
         digitalWrite(pinLED, doorOpen);
     }
 
     bool isDoorOpen() const { return doorOpen; }
-    int getOpenCount() const { return openCount; }
+    int getOpenDuration() const { 
+        if (!doorOpen) return 0;
+        return (int)((millis() - doorOpenStartTime) / 1000);
+    }
     void setOpenDir(bool dir) { openDir = dir; }
     void setAlertDelay(int delay) { alertDelay = delay; }
 };

@@ -51,8 +51,10 @@ public:
     void updateSetting(const String& key, const String& value) {
         if (key == "bBeepEnabled") {
             settings.beepEnabled = (value == "on");
+            Serial.printf("DEBUG: ConfigManager updated bBeepEnabled to %s\n", settings.beepEnabled ? "true" : "false");
         } else if (key == "bDoorOpenDir") {
             settings.doorOpenDir = (value == "on");
+            Serial.printf("DEBUG: ConfigManager updated bDoorOpenDir to %s\n", settings.doorOpenDir ? "true" : "false");
         } else if (key == "CntLightOnThresh") {
             settings.lightOnThresh = value.toInt();
         } else if (key == "CntWifiRetryAbort") {

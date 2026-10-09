@@ -37,6 +37,7 @@
 PinMap pins;
 ConfigManager config;
 HTTPSClientManager httpsClient;
+
 DaylightManager daylightManager(config.settings.latitude,
                                 config.settings.longitude,
                                 config.settings.timezone);
@@ -58,7 +59,11 @@ DoorSensor doorSensor(pins.doorPin,
 RoomState roomState(&tempHumSensor, &motionSensor, &doorSensor, &lightArbiter);
 AlertManager alertManager;
 
-os_timer_t myTimer;
+void syncConfig() {
+    lightArbiter.setMeasurementDelay(config.settings.lightRead);
+    doorSensor.setAlertDelay(config.settings.doorOpenAlertDelay);
+    motionSensor.setMotionDelay(config.settings.motionDelay);
+}
 
 void pushUpdate() {
     Serial.println("Pushing update to SSE...");
@@ -133,19 +138,15 @@ void UpdateSheets() {
     if (httpsClient.connect(host)) {
         String result = httpsClient.get(url_string, host);
         config.loadFromJson(result); 
+        syncConfig();
     }
-}
-
-void timerCallback(void* pArg) {
-    #ifdef USE_DOOR_SENSOR
-    alertManager.updateBeep(doorSensor.getOpenCount(), config.settings.doorOpenAlertDelay, config.settings.beepEnabled, pins.beepPin);
-    #endif
 }
 
 String rootProcessor(const String& var) {
     if (var == "ROOM_NAME") return String(room_name);
     return String();
 }
+
 void removeSection(String &html, const String &sectionName) {
     String startTag = "<!-- " + sectionName + "_SECTION -->";
     String endTag = "<!-- END_" + sectionName + "_SECTION -->";
@@ -179,7 +180,6 @@ void handleRoot(AsyncWebServerRequest *request) {
     
     request->send(200, "text/html", html);
 }
-
 
 void handleJSON(AsyncWebServerRequest *request) {
     Serial.printf("DEBUG: Web request received: /json IP: %s\n",
@@ -257,23 +257,31 @@ void handleConfig(AsyncWebServerRequest *request) {
 
 void handleSave(AsyncWebServerRequest *request) {
     int count = 0;
+    bool beepEnabledSeen = false;
+    bool doorOpenDirSeen = false;
+
     for (size_t i = 0; i < request->params(); i++) {
         AsyncWebParameter* p = request->getParam(i);
         if (p) {
+            Serial.printf("DEBUG: Saving param %s = %s\n", p->name().c_str(), p->value().c_str());
+            if (p->name() == "bBeepEnabled") beepEnabledSeen = true;
+            if (p->name() == "bDoorOpenDir") doorOpenDirSeen = true;
             config.updateSetting(p->name(), p->value());
             count++;
         }
     }
     
-    // Fix for checkboxes: if a parameter is missing, it means it was unchecked
-    if (!request->hasParam("bBeepEnabled")) {
+    if (!beepEnabledSeen) {
+        Serial.println("DEBUG: bBeepEnabled missing from request, setting to off");
         config.updateSetting("bBeepEnabled", "off");
     }
-    if (!request->hasParam("bDoorOpenDir")) {
+    if (!doorOpenDirSeen) {
+        Serial.println("DEBUG: bDoorOpenDir missing from request, setting to off");
         config.updateSetting("bDoorOpenDir", "off");
     }
-
+    
     Serial.printf("Saved %d settings\n", count);
+    syncConfig();
     request->redirect("/");
 }
 
@@ -313,7 +321,7 @@ void setup() {
     light2.begin();
     lightArbiter.addSensor(&light1);
     lightArbiter.addSensor(&light2);
-    lightArbiter.setMeasurementDelay(config.settings.lightRead);
+    syncConfig();
     
     Serial.println("Initializing Temp/Hum Sensor...");
     tempHumSensor.begin();
@@ -340,9 +348,6 @@ void setup() {
         // UpdateSupabase removed from here to let loop() handle it after sensors are ready
     }
     
-    os_timer_setfn(&myTimer, timerCallback, NULL);
-    os_timer_arm(&myTimer, 1000, true);
-
     server.on("/", handleRoot);
     server.on("/json", handleJSON);
     server.on("/config.html", handleConfig);
@@ -367,6 +372,8 @@ void loop() {
     roomState.isDaylight = daylightManager.isDaylight();
 
     alertManager.evaluate(roomState, roomState.isDaylight, config.settings.lightOnThresh);
+    alertManager.updateBeepState(doorSensor.getOpenDuration(), config.settings.doorOpenAlertDelay);
+    alertManager.updateHardware(pins.beepPin);
     
     bool bPushNeeded = (alertManager.hasNewTrigger() || roomState.lastPostMillis == 0 || (millis() - roomState.lastPostMillis >= (unsigned long)config.settings.postInterval * 1000UL));
     

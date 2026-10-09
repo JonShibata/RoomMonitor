@@ -9,13 +9,13 @@ private:
     int pinInput;
     int pinLED;
     bool motionDetected;
-    int motionTimer;
+    unsigned long motionStartTime;
     int motionDelay;
     bool ready;
 
 public:
     MotionSensor(int pIn, int pLED, int delaySecs) 
-        : pinInput(pIn), pinLED(pLED), motionDetected(false), motionTimer(0), motionDelay(delaySecs), ready(false) {}
+        : pinInput(pIn), pinLED(pLED), motionDetected(false), motionStartTime(0), motionDelay(delaySecs), ready(false) {}
 
     void begin() {
         pinMode(pinInput, INPUT);
@@ -34,11 +34,9 @@ public:
     void update() {
         if (digitalRead(pinInput)) {
             motionDetected = true;
-            motionTimer = 0;
+            motionStartTime = millis();
         } else {
-            if (motionTimer < motionDelay) {
-                motionTimer++;
-            } else {
+            if (millis() - motionStartTime >= (unsigned long)motionDelay * 1000UL) {
                 motionDetected = false;
             }
         }
@@ -46,6 +44,7 @@ public:
     }
 
     bool isMotionDetected() const { return motionDetected; }
+    void setMotionDelay(int delay) { motionDelay = delay; }
 };
 
 #endif

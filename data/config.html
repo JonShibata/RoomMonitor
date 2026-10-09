@@ -13,21 +13,21 @@
             <div class="form-group"><label>Beep Enabled</label><input type="checkbox" name="bBeepEnabled" value="on" {{BEEP_CHECKED}}></div>
             
             <!-- DOOR_SECTION -->
-            <div class="form-group"><label>Door Open Alert Delay</label><input type="number" name="tDoorOpenAlertDelay" value="{{T_DOOR_ALERT}}"></div>
-            <div class="form-group"><label>Door Open Beep Delay</label><input type="number" name="tDoorOpenBeepDelay" value="{{T_DOOR_BEEP}}"></div>
+            <div class="form-group"><label>Door Open Alert Delay (s)</label><input type="number" name="tDoorOpenAlertDelay" value="{{T_DOOR_ALERT}}"></div>
+            <div class="form-group"><label>Door Open Beep Delay (s)</label><input type="number" name="tDoorOpenBeepDelay" value="{{T_DOOR_BEEP}}"></div>
             <!-- END_DOOR_SECTION -->
 
             <!-- LIGHT_SECTION -->
-            <div class="form-group"><label>Light On Threshold</label><input type="number" name="CntLightOnThresh" value="{{CNT_LIGHT_ON}}"></div>
-            <div class="form-group"><label>Light Alert Thresh</label><input type="number" name="tLightAlertThresh" value="{{T_LIGHT_ALERT}}"></div>
-            <div class="form-group"><label>Light Read Interval</label><input type="number" name="tLightRead" value="{{T_LIGHT_READ}}"></div>
+            <div class="form-group"><label>Light On Threshold (counts)</label><input type="number" name="CntLightOnThresh" value="{{CNT_LIGHT_ON}}"></div>
+            <div class="form-group"><label>Light Alert Thresh (counts)</label><input type="number" name="tLightAlertThresh" value="{{T_LIGHT_ALERT}}"></div>
+            <div class="form-group"><label>Light Read Interval (ms)</label><input type="number" name="tLightRead" value="{{T_LIGHT_READ}}"></div>
             <!-- END_LIGHT_SECTION -->
 
             <!-- MOTION_SECTION -->
-            <div class="form-group"><label>Motion Delay</label><input type="number" name="tMotionDelay" value="{{T_MOTION_DELAY}}"></div>
+            <div class="form-group"><label>Motion Delay (s)</label><input type="number" name="tMotionDelay" value="{{T_MOTION_DELAY}}"></div>
             <!-- END_MOTION_SECTION -->
 
-            <div class="form-group"><label>Wifi Retry Abort</label><input type="number" name="CntWifiRetryAbort" value="{{CNT_WIFI_ABORT}}"></div>
+            <div class="form-group"><label>Wifi Retry Abort (attempts)</label><input type="number" name="CntWifiRetryAbort" value="{{CNT_WIFI_ABORT}}"></div>
             <div class="form-group"><label>Post Interval (s)</label><input type="number" name="tPost" value="{{T_POST}}"></div>
             <div class="form-group"><label>Home Alert IP</label><input type="text" name="HomeAlertIP" value="{{HOME_ALERT_IP}}"></div>
             <button type="submit" class="btn">Save Settings</button>
