@@ -9,26 +9,25 @@
 #include <ESPAsyncWebServer.h>
 #include <ESPAsyncTCP.h>
 
-#include "DebugMacros.h"
+#include <DebugMacros.h>
 
 #include <Adafruit_Sensor.h>
 
-#include "ScriptConfig.h"
-#include "WifiConfig.h"
-#include "SupabaseConfig.h"
+#include <ScriptConfig.h>
+#include <WifiConfig.h>
+#include <SupabaseConfig.h>
 
-#include "HomeAssistantWebhook.h"
-#include "LightArbiter.h"
-#include "TempHumiditySensor.h"
-#include "MotionSensor.h"
-#include "DoorSensor.h"
-#include "RoomState.h"
-#include "HardwareConfig.h"
-#include "ConfigManager.h"
-#include "HTTPSClientManager.h"
-#include "AlertManager.h"
-#include "DaylightManager.h"
-#include "ConnectivityManager.h"
+#include <HomeAssistantWebhook.h>
+#include <LightArbiter.h>
+#include <TempHumiditySensor.h>
+#include <MotionSensor.h>
+#include <DoorSensor.h>
+#include <RoomState.h>
+#include <HardwareConfig.h>
+#include <ConfigManager.h>
+#include <AlertManager.h>
+#include <DaylightManager.h>
+#include <ConnectivityManager.h>
 
 // Global Hardware/Config Instances
 PinMap pins;

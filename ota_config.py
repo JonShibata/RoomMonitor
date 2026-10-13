@@ -12,7 +12,7 @@ ROOM_IPS = {
 
 def get_active_room():
     # Get path to ScriptConfig.h
-    config_path = os.path.join(env.get("PROJECT_SRC_DIR"), "ScriptConfig.h")
+    config_path = os.path.join(env.get("PROJECT_INCLUDE_DIR"), "ScriptConfig.h")
     
     if not os.path.exists(config_path):
         print(f"Warning: {config_path} not found!")
