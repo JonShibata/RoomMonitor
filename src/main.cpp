@@ -19,6 +19,7 @@
 #include "WifiConfig.h"
 #include "SupabaseConfig.h"
 
+#include "HomeAssistantWebhook.h"
 #include "BaseSensor.h"
 #include "LightSensor.h"
 #include "LightArbiter.h"
@@ -42,6 +43,9 @@ DaylightManager daylightManager(config.settings.latitude,
                                 config.settings.longitude,
                                 config.settings.timezone);
 ConnectivityManager connectivityManager(config.settings.wifiRetryAbort);
+
+HomeAssistantWebhook motionHA("http://192.168.6.53:8123/api/webhook/basement-motion");
+HomeAssistantWebhook doorHA("http://192.168.6.53:8123/api/webhook/basement-door");
 
 AsyncWebServer server(80);
 AsyncEventSource source("/event");
@@ -416,6 +420,13 @@ void loop() {
 
     // 2. UI-Only Updates: Push to SSE if sensors have changes.
     if (roomState.anyChanges() && (millis() - lastUIUpdateMillis >= 500)) {
+        if (roomState.motion.hasChanges()) {
+            motionHA.update(roomState.motion.getValue() ? "on" : "off");
+        }
+        if (roomState.doorOpen.hasChanges()) {
+            doorHA.update(roomState.doorOpen.getValue() ? "on" : "off");
+        }
+
         Serial.print("UI PUSH TRIGGERED. Dirty: ");
         if (roomState.temperature.hasChanges()) Serial.print("T ");
         if (roomState.humidity.hasChanges()) Serial.print("H ");
