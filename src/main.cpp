@@ -9,18 +9,15 @@
 #include <ESPAsyncWebServer.h>
 #include <ESPAsyncTCP.h>
 
-#include "HTTPSRedirect.h"
 #include "DebugMacros.h"
 
 #include <Adafruit_Sensor.h>
 
 #include "ScriptConfig.h"
-#include "SheetConfig.h"
 #include "WifiConfig.h"
 #include "SupabaseConfig.h"
 
 #include "HomeAssistantWebhook.h"
-#include "BaseSensor.h"
 #include "LightSensor.h"
 #include "LightArbiter.h"
 #include "TempHumiditySensor.h"
@@ -37,7 +34,6 @@
 // Global Hardware/Config Instances
 PinMap pins;
 ConfigManager config;
-HTTPSClientManager httpsClient;
 
 DaylightManager daylightManager(config.settings.latitude,
                                 config.settings.longitude,
@@ -123,26 +119,6 @@ void UpdateSupabase() {
         http.end();
     } else {
         Serial.println("DEBUG: HTTP begin failed");
-    }
-}
-
-void UpdateSheets() {
-    String url_string = "/macros/s/" + String(sheet_id)
-        + "/exec?room_name=" + String(room_name)
-        + "&Door=" + String(roomState.doorOpen.getValue())
-        + "&Temperature=" + String(roomState.temperature.getValue())
-        + "&Humidity=" + String(roomState.humidity.getValue())
-        + "&Motion=" + String(roomState.motion.getValue())
-        + "&Light1=" + String(roomState.lightArbiter->getValue(0))
-        + "&Light2=" + String(roomState.lightArbiter->getValue(1))
-        + "&LightAlert=" + String(alertManager.isLightAlert())
-        + "&DoorAlert=" + String(alertManager.isDoorAlert())
-        + "&Daylight=" + String(roomState.isDaylight) + "&";
-    
-    if (httpsClient.connect(host)) {
-        String result = httpsClient.get(url_string, host);
-        config.loadFromJson(result); 
-        syncConfig();
     }
 }
 

@@ -1,0 +1,4 @@
+// SupabaseConfig.h
+
+const char* supabase_url = "https://dpsmpuigeadjpjodbvcq.supabase.co";
+const char* supabase_anon_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwc21wdWlnZWFkanBqb2RidmNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3OTI0NTksImV4cCI6MjA4NzM2ODQ1OX0.aki7zue7xfSfldOkua6KBNM3fZtr0xc4p7qmHgVsdDc";
