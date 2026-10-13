@@ -17,14 +17,23 @@ private:
 public:
     LightArbiter() : currentSensorIdx(-1), waitStart(0), updating(false) {}
 
+    ~LightArbiter() {
+        for (auto s : sensors) delete s;
+    }
+
+    void init(const int* controlPins, int analogPin, int sensorCount) {
+        for (int i = 0; i < sensorCount; i++) {
+            LightSensor* s = new LightSensor(controlPins[i], analogPin, measurementDelay);
+            s->begin();
+            sensors.push_back(s);
+            lastValues.push_back(0);
+        }
+    }
+
     void setMeasurementDelay(unsigned long delay) {
         measurementDelay = delay;
     }
 
-    void addSensor(LightSensor* s) {
-        sensors.push_back(s);
-        lastValues.push_back(0);
-    }
 
     int getValue(int index) const {
         if (index >= 0 && index < (int)lastValues.size()) {

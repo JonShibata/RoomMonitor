@@ -18,7 +18,6 @@
 #include "SupabaseConfig.h"
 
 #include "HomeAssistantWebhook.h"
-#include "LightSensor.h"
 #include "LightArbiter.h"
 #include "TempHumiditySensor.h"
 #include "MotionSensor.h"
@@ -46,8 +45,6 @@ HomeAssistantWebhook doorHA("http://192.168.6.53:8123/api/webhook/basement-door"
 AsyncWebServer server(80);
 AsyncEventSource source("/event");
 
-LightSensor light1(pins.lightD1Pin, pins.analogPin, config.settings.lightRead);
-LightSensor light2(pins.lightD2Pin, pins.analogPin, config.settings.lightRead);
 LightArbiter lightArbiter;
 TempHumiditySensor tempHumSensor(pins.htPin);
 MotionSensor motionSensor(pins.motionPin, pins.ledMotionPin, config.settings.motionDelay);
@@ -295,12 +292,9 @@ void setup() {
 
     if (!LittleFS.begin()) Serial.println("LittleFS Mount Failed");
     
-    Serial.println("Initializing Light 1...");
-    light1.begin();
-    Serial.println("Initializing Light 2...");
-    light2.begin();
-    lightArbiter.addSensor(&light1);
-    lightArbiter.addSensor(&light2);
+    Serial.println("Initializing Light Sensors...");
+    int lightPins[] = {pins.lightD1Pin, pins.lightD2Pin};
+    lightArbiter.init(lightPins, pins.analogPin, 2);
     syncConfig();
     
     Serial.println("Initializing Temp/Hum Sensor...");
