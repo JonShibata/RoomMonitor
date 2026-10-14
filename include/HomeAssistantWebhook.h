@@ -19,6 +19,7 @@ public:
             WiFiClient client;
             HTTPClient http;
             http.begin(client, url);
+            http.setTimeout(1000);
             http.addHeader("Content-Type", "application/json");
             
             String payload = "{\"state\":\"" + String(state) + "\"}";

@@ -32,6 +32,7 @@
 // Global Hardware/Config Instances
 PinMap pins;
 ConfigManager config;
+bool otaSafeMode = false;
 
 DaylightManager daylightManager(config.settings.latitude,
                                 config.settings.longitude,
@@ -83,6 +84,7 @@ void UpdateSupabase() {
     client_secure.setInsecure();
     HTTPClient http;
     if (http.begin(client_secure, url)) {
+        http.setTimeout(1000);
         Serial.println("DEBUG: HTTP begin success");
         http.addHeader("apikey", supabase_anon_key);
         http.addHeader("Authorization", "Bearer " + String(supabase_anon_key));
@@ -186,7 +188,6 @@ String processor(const String& var) {
     if (var == "tLightRead") return String(config.settings.lightRead);
     if (var == "tMotionDelay") return String(config.settings.motionDelay);
     if (var == "tPost") return String(config.settings.postInterval);
-    if (var == "homeAlertIP") return config.settings.homeAlertIP;
     if (var == "latitude") return String(config.settings.latitude, 4);
     if (var == "longitude") return String(config.settings.longitude, 4);
     if (var == "timezone") return String(config.settings.timezone);
@@ -210,7 +211,6 @@ void handleConfig(AsyncWebServerRequest *request) {
     html.replace("{{T_MOTION_DELAY}}", String(config.settings.motionDelay));
     html.replace("{{CNT_WIFI_ABORT}}", String(config.settings.wifiRetryAbort));
     html.replace("{{T_POST}}", String(config.settings.postInterval));
-    html.replace("{{HOME_ALERT_IP}}", config.settings.homeAlertIP);
 
     #ifndef USE_DOOR_SENSOR
         int startDoor = html.indexOf("<!-- DOOR_SECTION -->");
@@ -292,6 +292,18 @@ void setup() {
     if (!LittleFS.begin()) Serial.println("LittleFS Mount Failed");
     
     Serial.println("Initializing Light Sensors...");
+    
+    // Sync ConfigManager with ScriptConfig.h defaults on boot
+    config.settings.beepEnabled = bBeepEnabled;
+    config.settings.lightOnThresh = CntLightOnThresh;
+    config.settings.wifiRetryAbort = CntWifiRetryAbort;
+    config.settings.doorOpenAlertDelay = tDoorOpenAlertDelay;
+    config.settings.doorOpenBeepDelay = tDoorOpenBeepDelay;
+    config.settings.lightAlertThresh = tLightAlertThresh;
+    config.settings.lightRead = tLightRead;
+    config.settings.motionDelay = tMotionDelay;
+    config.settings.postInterval = tPost;
+
     int lightPins[] = {pins.lightD1Pin, pins.lightD2Pin};
     lightArbiter.init(lightPins, pins.analogPin, 2);
     syncConfig();
@@ -325,6 +337,14 @@ void setup() {
     server.on("/json", handleJSON);
     server.on("/config.html", handleConfig);
     server.on("/save", handleSave);
+    server.on("/ota-status", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(200, "text/plain", "Device is responsive");
+    });
+    server.on("/ota-safe", HTTP_GET, [](AsyncWebServerRequest *request){
+        otaSafeMode = true;
+        Serial.println("OTA Safe Mode ENABLED: Cloud posts disabled for 5 mins");
+        request->send(200, "text/plain", "OTA Safe Mode enabled for 5 minutes");
+    });
     server.on("/style.css", [](AsyncWebServerRequest *request){ request->send(LittleFS, "/style.css", "text/css"); });
     server.on("/events", [](AsyncWebServerRequest *request) {
         request->send(new AsyncEventSourceResponse(&source));
@@ -334,12 +354,22 @@ void setup() {
 
 void loop() {
     static unsigned long lastUIUpdateMillis = 0;
+    static unsigned long safeModeStartTime = 0;
     
+    if (otaSafeMode && (millis() - safeModeStartTime > 300000)) {
+        otaSafeMode = false;
+        Serial.println("OTA Safe Mode disabled");
+    }
+    if (otaSafeMode && safeModeStartTime == 0) safeModeStartTime = millis();
+
     if (!connectivityManager.isConnected()) {
         connectivityManager.connect(ssid, password, room_name);
     }
     ArduinoOTA.handle();
+    
+    if (otaSafeMode) return;
 
+    unsigned long loopStart = millis();
     roomState.updateAll();
     lightArbiter.update();
     roomState.isDaylight = daylightManager.isDaylight();
@@ -414,4 +444,9 @@ void loop() {
     }
     
     if (connectivityManager.shouldRestart()) ESP.restart();
+    
+    unsigned long loopEnd = millis();
+    if (loopEnd - loopStart > 200) {
+        Serial.printf("WARNING: Loop blocked for %lu ms\n", loopEnd - loopStart);
+    }
 }

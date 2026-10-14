@@ -10,15 +10,14 @@ public:
     struct Settings {
         bool beepEnabled = true;
         bool doorOpenDir = true;
-        int lightOnThresh = 500;
+        int lightOnThresh = 70;
         int wifiRetryAbort = 10;
-        int doorOpenAlertDelay = 30;
-        int doorOpenBeepDelay = 10;
-        int lightAlertThresh = 100;
-        int lightRead = 100;
-        int motionDelay = 10;
+        int doorOpenAlertDelay = 300;
+        int doorOpenBeepDelay = 20;
+        int lightAlertThresh = 600;
+        int lightRead = 700;
+        int motionDelay = 600;
         int postInterval = 3600; 
-        String homeAlertIP = "192.168.1.100";
         float latitude = 40.7128;
         float longitude = -74.0060;
         int timezone = -5;
@@ -39,7 +38,6 @@ public:
         if (doc.containsKey("tLightRead")) settings.lightRead = doc["tLightRead"];
         if (doc.containsKey("tMotionDelay")) settings.motionDelay = doc["tMotionDelay"];
         if (doc.containsKey("tPost")) settings.postInterval = doc["tPost"];
-        if (doc.containsKey("HomeAlertIP")) settings.homeAlertIP = doc["HomeAlertIP"].as<String>();
         if (doc.containsKey("latitude")) settings.latitude = doc["latitude"];
         if (doc.containsKey("longitude")) settings.longitude = doc["longitude"];
         if (doc.containsKey("timezone")) settings.timezone = doc["timezone"];
@@ -70,8 +68,6 @@ public:
             settings.motionDelay = value.toInt();
         } else if (key == "tPost") {
             settings.postInterval = value.toInt();
-        } else if (key == "HomeAlertIP") {
-            settings.homeAlertIP = value;
         } else if (key == "latitude") {
             settings.latitude = value.toFloat();
         } else if (key == "longitude") {
