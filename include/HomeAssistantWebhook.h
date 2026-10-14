@@ -10,26 +10,13 @@ private:
     String lastState;
 
 public:
-    HomeAssistantWebhook(const char* webhookUrl) : url(webhookUrl), lastState("") {}
+    HomeAssistantWebhook(const String& webhookUrl) : url(webhookUrl), lastState("") {}
 
-    void update(const char* state, bool force = false) {
+    void update(const char* state, bool force = false, const char* key = "state") {
+        if (url == "" || url.endsWith("/webhook/")) return;
         if (!force && String(state) == lastState) return;
         
         if (WiFi.status() == WL_CONNECTED) {
-            WiFiClient client;
-            HTTPClient http;
-            http.begin(client, url);
-            http.setTimeout(1000);
-            http.addHeader("Content-Type", "application/json");
-            
-            String payload = "{\"state\":\"" + String(state) + "\"}";
-            int httpCode = http.POST(payload);
-            
-            if (httpCode > 0) {
-                lastState = state;
-                Serial.printf("HA Update (%s) sent: %d\n", url.c_str(), httpCode);
-            } else {
-                Serial.printf("HA Update failed (%s): %s\n", url.c_str(), http.errorToString(httpCode).c_str());
             int retries = 3;
             int attempt = 0;
             bool success = false;
@@ -41,7 +28,7 @@ public:
                 http.setTimeout(1000);
                 http.addHeader("Content-Type", "application/json");
                 
-                String payload = "{\"state\":\"" + String(state) + "\"}";
+                String payload = "{\"" + String(key) + "\":\"" + String(state) + "\"}";
                 int httpCode = http.POST(payload);
                 
                 if (httpCode == HTTP_CODE_OK) {

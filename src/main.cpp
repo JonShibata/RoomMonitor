@@ -39,8 +39,9 @@ DaylightManager daylightManager(config.settings.latitude,
                                 config.settings.timezone);
 ConnectivityManager connectivityManager(config.settings.wifiRetryAbort);
 
-HomeAssistantWebhook motionHA("http://192.168.6.53:8123/api/webhook/basement-motion");
-HomeAssistantWebhook doorHA("http://192.168.6.53:8123/api/webhook/basement-door");
+HomeAssistantWebhook motionHA(String(ha_webhook_base) + ha_motion_endpoint);
+HomeAssistantWebhook doorHA(String(ha_webhook_base) + ha_door_endpoint);
+HomeAssistantWebhook tempHA(String(ha_webhook_base) + ha_temp_endpoint);
 
 AsyncWebServer server(80);
 AsyncEventSource source("/event");
@@ -372,10 +373,6 @@ void loop() {
     
     if (otaSafeMode) return;
 
-    unsigned long loopStart = millis();
-    
-    if (otaSafeMode) return;
-
     if (millis() - lastHeartbeat >= heartbeatInterval) {
         lastHeartbeat = millis();
         Serial.println("DEBUG: Performing periodic reconciliation heartbeat...");
@@ -415,6 +412,8 @@ void loop() {
                                   roomState.humidity.getValue());
             }
             UpdateSupabase();
+            float tempF = (roomState.temperature.getValue() * 9.0 / 5.0) + 32.0;
+            tempHA.update(String(tempF, 1).c_str(), false, "value");
             pushUpdate();
             
             alertManager.updateSyncState();
