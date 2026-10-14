@@ -45,6 +45,9 @@ HomeAssistantWebhook doorHA("http://192.168.6.53:8123/api/webhook/basement-door"
 AsyncWebServer server(80);
 AsyncEventSource source("/event");
 
+unsigned long lastHeartbeat = 0;
+const unsigned long heartbeatInterval = 600000; // 10 minutes
+
 LightArbiter lightArbiter;
 TempHumiditySensor tempHumSensor(pins.htPin);
 MotionSensor motionSensor(pins.motionPin, pins.ledMotionPin, config.settings.motionDelay);
@@ -368,6 +371,17 @@ void loop() {
     ArduinoOTA.handle();
     
     if (otaSafeMode) return;
+
+    unsigned long loopStart = millis();
+    
+    if (otaSafeMode) return;
+
+    if (millis() - lastHeartbeat >= heartbeatInterval) {
+        lastHeartbeat = millis();
+        Serial.println("DEBUG: Performing periodic reconciliation heartbeat...");
+        motionHA.forceSend(roomState.motion.getValue() ? "on" : "off");
+        doorHA.forceSend(roomState.doorOpen.getValue() ? "on" : "off");
+    }
 
     unsigned long loopStart = millis();
     roomState.updateAll();
