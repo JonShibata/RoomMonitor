@@ -96,16 +96,24 @@ void UpdateSupabase() {
         http.addHeader("Prefer", "return=minimal");
         
         StaticJsonDocument<512> doc;
-        doc["room_name"] = room_name;
-        doc["Door"] = roomState.doorOpen.getValue();
         doc["Temperature"] = roomState.temperature.getValue();
         doc["Humidity"] = roomState.humidity.getValue();
+        doc["Daylight"] = roomState.isDaylight;
+
+        #ifdef USE_DOOR_SENSOR
+        doc["Door"] = roomState.doorOpen.getValue();
+        doc["DoorAlert"] = alertManager.isDoorAlert();
+        #endif
+
+        #ifdef USE_MOTION_SENSOR
         doc["Motion"] = roomState.motion.getValue();
+        #endif
+
+        #ifdef USE_LIGHT_SENSORS
         doc["Light1"] = roomState.lightArbiter->getValue(0);
         doc["Light2"] = roomState.lightArbiter->getValue(1);
         doc["LightAlert"] = alertManager.isLightAlert();
-        doc["DoorAlert"] = alertManager.isDoorAlert();
-        doc["Daylight"] = roomState.isDaylight;
+        #endif
         
         String payload;
         serializeJson(doc, payload);
@@ -298,17 +306,10 @@ void setup() {
     Serial.println("Initializing Light Sensors...");
     
     // Sync ConfigManager with ScriptConfig.h defaults on boot
-    config.settings.beepEnabled = bBeepEnabled;
-    config.settings.lightOnThresh = CntLightOnThresh;
-    config.settings.wifiRetryAbort = CntWifiRetryAbort;
-    config.settings.doorOpenAlertDelay = tDoorOpenAlertDelay;
-    config.settings.doorOpenBeepDelay = tDoorOpenBeepDelay;
-    config.settings.lightAlertThresh = tLightAlertThresh;
-    config.settings.lightRead = tLightRead;
-    config.settings.motionDelay = tMotionDelay;
-    config.settings.postInterval = tPost;
-
+    // Defaults are now handled inside ConfigManager.h
+    
     int lightPins[] = {pins.lightD1Pin, pins.lightD2Pin};
+
     lightArbiter.init(lightPins, pins.analogPin, 2);
     syncConfig();
     
@@ -327,13 +328,14 @@ void setup() {
     lightArbiter.requestReading();
     Serial.println("Triggering all sensors...");
     roomState.lastPostMillis = 0; // Force immediate cloud push on boot
+    // Remove the forced push from setup and let loop() handle it only after roomState.allReady() is true
     
     Serial.println("Connecting to WiFi...");
     connectivityManager.connect(ssid, password, room_name);
     Serial.println("WiFi connect call returned.");
 
     if (connectivityManager.isConnected()) {
-        configTime(config.settings.timezone * 3600, 0, "pool.ntp.org", "time.nist.gov");
+        configTime("EST5EDT,M3.2.0,M11.1.0", "pool.ntp.org", "time.nist.gov");
         // UpdateSupabase removed from here to let loop() handle it after sensors are ready
     }
     
@@ -347,9 +349,40 @@ void setup() {
     server.on("/ota-safe", HTTP_GET, [](AsyncWebServerRequest *request){
         otaSafeMode = true;
         Serial.println("OTA Safe Mode ENABLED: Cloud posts disabled for 5 mins");
-        request->send(200, "text/plain", "OTA Safe Mode enabled for 5 minutes");
+        request->send(200, "text/plain", "OTA Safe Mode enabled for five minutes");
+    });
+    server.on("/debug/daylight", HTTP_GET, [](AsyncWebServerRequest *request){
+        StaticJsonDocument<256> doc;
+        doc["is_daylight"] = daylightManager.isDaylight();
+        doc["lat"] = config.settings.latitude;
+        doc["lon"] = config.settings.longitude;
+        doc["tz"] = config.settings.timezone;
+        
+        time_t now = time(nullptr);
+        char timeStr[20];
+        strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", localtime(&now));
+        doc["current_time"] = timeStr;
+
+        String payload;
+        serializeJson(doc, payload);
+        request->send(200, "application/json", payload);
+    });
+    server.on("/debug/door", HTTP_GET, [](AsyncWebServerRequest *request){
+        StaticJsonDocument<512> doc;
+        doc["door_open"] = roomState.doorOpen.getValue();
+        doc["open_duration_sec"] = doorSensor.getOpenDuration();
+        doc["alert_delay"] = config.settings.doorOpenAlertDelay;
+        doc["door_alert_active"] = alertManager.isDoorAlert();
+        doc["beep_state"] = alertManager.getBeepState();
+        doc["beep_enabled"] = config.settings.beepEnabled;
+        doc["door_open_dir"] = config.settings.doorOpenDir;
+        
+        String payload;
+        serializeJson(doc, payload);
+        request->send(200, "application/json", payload);
     });
     server.on("/style.css", [](AsyncWebServerRequest *request){ request->send(LittleFS, "/style.css", "text/css"); });
+
     server.on("/events", [](AsyncWebServerRequest *request) {
         request->send(new AsyncEventSourceResponse(&source));
     });
@@ -386,7 +419,7 @@ void loop() {
     roomState.isDaylight = daylightManager.isDaylight();
 
     alertManager.evaluate(roomState, roomState.isDaylight, config.settings.lightOnThresh);
-    alertManager.updateBeepState(doorSensor.getOpenDuration(), config.settings.doorOpenAlertDelay);
+    alertManager.updateBeepState(roomState.doorOpen.getValue(), doorSensor.getOpenDuration(), config.settings.doorOpenBeepDelay);
     alertManager.updateHardware(pins.beepPin);
     
     bool bPushNeeded = (alertManager.hasNewTrigger() || roomState.lastPostMillis == 0 || (millis() - roomState.lastPostMillis >= (unsigned long)config.settings.postInterval * 1000UL));
@@ -403,15 +436,17 @@ void loop() {
     // 1. Cloud Updates: Only on bPushNeeded (Alerts or 1-hour interval)
     if (bPushNeeded && connectivityManager.isConnected()) {
         bool forcePush = (millis() - roomState.lastTriggerAllMillis >= 10000);
-        if (roomState.allReady() || forcePush) {
+        if (roomState.allReady()) {
             if (forcePush && !roomState.allReady()) {
                 Serial.println(">>> CLOUD FORCE PUSH: Timeout waiting for sensors.");
             } else {
-                Serial.printf(">>> CLOUD PUSH: All sensors ready. T=%.1f H=%.1f\n", 
-                                  roomState.temperature.getValue(), 
-                                  roomState.humidity.getValue());
+                Serial.printf(">>> CLOUD PUSH: All sensors ready. T=%.1f H=%.1f Daylight=%s\n", 
+                               roomState.temperature.getValue(), 
+                               roomState.humidity.getValue(),
+                               roomState.isDaylight ? "YES" : "NO");
             }
             UpdateSupabase();
+
             float tempF = (roomState.temperature.getValue() * 9.0 / 5.0) + 32.0;
             tempHA.update(String(tempF, 1).c_str(), false, "value");
             pushUpdate();

@@ -44,42 +44,40 @@ public:
         
         if (cosH > 1.0 || cosH < -1.0) return false; // Polar night/day
 
-        // Calculation of H is not currently used in the return logic
-        // float H = acos(cosH) / RAD;
-
-        
         // For a room monitor, a simpler approach is calculating solar noon
         // and adding/subtracting half the day length.
-        float solarNoon = 720 - 4 * longitude; // minutes from midnight UTC
-        float dayLength = 2 * acos(-tan(latRad) * tan(decl)) / RAD * 15.0; // degrees to minutes
+        float solarNoon = 720 - (longitude / 15.0) * 60.0; // minutes from midnight UTC
         
-        float sunrise = solarNoon - (dayLength / 2.0);
-        float sunset = solarNoon + (dayLength / 2.0);
+        // Correct Day Length: H = acos(-tan(lat)*tan(decl)). DayLength = 2 * H * (180/PI) / 15 * 60 mins
+        float H = acos(-tan(latRad) * tan(decl));
+        float dayLengthMins = 2.0 * (H / RAD) * 4.0; // 1 degree = 4 minutes
         
-        float currentMinutes = (timeinfo->tm_hour * 60) + timeinfo->tm_min;
-        // Note: timeinfo is already adjusted for timezone by configTime()
+        float sunrise = solarNoon - (dayLengthMins / 2.0);
+        float sunset = solarNoon + (dayLengthMins / 2.0);
         
-        // Convert UTC solar times to local time
-        float localSunrise = sunrise + (timezone * 60);
-        float localSunset = sunset + (timezone * 60);
+        // Convert current local time to UTC minutes from midnight
+        float localMinutes = (timeinfo->tm_hour * 60) + timeinfo->tm_min;
+        float utcMinutes = localMinutes - (timezone * 60);
         
-        // Normalize to 0-1440
+        // Normalize UTC minutes to 0-1440
         auto normalize = [](float m) {
             while (m < 0) m += 1440;
             while (m >= 1440) m -= 1440;
             return m;
         };
         
-        float start = normalize(localSunrise);
-        float end = normalize(localSunset);
+        float currentUTC = normalize(utcMinutes);
+        float start = normalize(sunrise);
+        float end = normalize(sunset);
         
         if (start < end) {
-            return (currentMinutes >= start && currentMinutes <= end);
+            return (currentUTC >= start && currentUTC <= end);
         } else {
             // Sunset is next day (polar regions)
-            return (currentMinutes >= start || currentMinutes <= end);
+            return (currentUTC >= start || currentUTC <= end);
         }
     }
 };
 
 #endif
+

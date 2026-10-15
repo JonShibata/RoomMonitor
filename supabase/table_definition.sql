@@ -25,8 +25,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create tables for each of the rooms defined in the config
-SELECT create_room_table('Basement');
-SELECT create_room_table('BonusRoom');
+SELECT create_room_table('basement');
+SELECT create_room_table('bonusroom');
 SELECT create_room_table('Garage');
 SELECT create_room_table('Test');
 

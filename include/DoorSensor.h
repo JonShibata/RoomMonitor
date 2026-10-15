@@ -33,7 +33,10 @@ public:
     }
 
     void update() {
-        if (digitalRead(pinInput) == true) {
+        bool reading = digitalRead(pinInput);
+        bool currentOpen = (openDir) ? (reading == HIGH) : (reading == LOW);
+        
+        if (currentOpen) {
             if (!doorOpen) {
                 doorOpenStartTime = millis();
             }

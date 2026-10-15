@@ -4,14 +4,21 @@ import re
 Import("env")
 
 # Optional: Map room names to specific IPs if mDNS (.local) doesn't work for you
-# Example: "BonusRoom": "192.168.6.2"
+# Example: "bonusroom": "192.168.6.2"
 ROOM_IPS = {
-    "Basement": "192.168.6.1",
-    "BonusRoom": "192.168.6.2",
+    "basement": "192.168.6.1",
+    "bonusroom": "192.168.6.2",
 }
 
 def get_active_room():
-    # Get path to ScriptConfig.h
+    # 1. Check PlatformIO build flags first
+    build_flags = env.get("BUILD_FLAGS", "")
+    known_rooms = ["basement", "bonusroom", "garage", "test"]
+    for room in known_rooms:
+        if f"-D {room}" in build_flags or f"-D{room}" in build_flags:
+            return room
+
+    # 2. Fallback to parsing ScriptConfig.h
     config_path = os.path.join(env.get("PROJECT_INCLUDE_DIR"), "ScriptConfig.h")
     
     if not os.path.exists(config_path):
@@ -22,7 +29,7 @@ def get_active_room():
         lines = f.readlines()
 
     # List of known room defines to look for (based on your ScriptConfig.h)
-    known_rooms = ["Basement", "BonusRoom", "Garage", "Test"]
+    known_rooms = ["basement", "bonusroom", "garage", "test"]
 
     for line in lines:
         line = line.strip()

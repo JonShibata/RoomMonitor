@@ -1,15 +1,20 @@
 #ifndef CONFIG_MANAGER_H
 #define CONFIG_MANAGER_H
-
+ 
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include "WifiConfig.h"
-
+ 
 class ConfigManager {
 public:
     struct Settings {
         bool beepEnabled = true;
-        bool doorOpenDir = true;
+        bool doorOpenDir = 
+        #if defined(basement)
+            true;
+        #else
+            false;
+        #endif
         int lightOnThresh = 70;
         int wifiRetryAbort = 10;
         int doorOpenAlertDelay = 300;
@@ -22,6 +27,7 @@ public:
         float longitude = -74.0060;
         int timezone = -5;
     } settings;
+
 
     bool loadFromJson(String json) {
         StaticJsonDocument<1024> doc;
