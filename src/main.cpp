@@ -17,8 +17,9 @@
 #include <WifiConfig.h>
 #include <SupabaseConfig.h>
 
-#include <HomeAssistantWebhook.h>
+#include <MqttClient.h>
 #include <LightArbiter.h>
+
 #include <TempHumiditySensor.h>
 #include <MotionSensor.h>
 #include <DoorSensor.h>
@@ -38,12 +39,11 @@ DaylightManager daylightManager(config.settings.latitude,
                                 config.settings.longitude,
                                 config.settings.timezone);
 ConnectivityManager connectivityManager(config.settings.wifiRetryAbort);
-
-HomeAssistantWebhook motionHA(String(ha_webhook_base) + ha_motion_endpoint);
-HomeAssistantWebhook doorHA(String(ha_webhook_base) + ha_door_endpoint);
-HomeAssistantWebhook tempHA(String(ha_webhook_base) + ha_temp_endpoint);
-
+ 
+MqttClient mqttClient;
+ 
 AsyncWebServer server(80);
+
 AsyncEventSource source("/event");
 
 unsigned long lastHeartbeat = 0;
@@ -328,9 +328,11 @@ void setup() {
     lightArbiter.requestReading();
     Serial.println("Triggering all sensors...");
     roomState.lastPostMillis = 0; // Force immediate cloud push on boot
-    // Remove the forced push from setup and let loop() handle it only after roomState.allReady() is true
+    
+    mqttClient.setup(config);
     
     Serial.println("Connecting to WiFi...");
+
     connectivityManager.connect(ssid, password, room_name);
     Serial.println("WiFi connect call returned.");
 
@@ -381,6 +383,18 @@ void setup() {
         serializeJson(doc, payload);
         request->send(200, "application/json", payload);
     });
+    server.on("/debug/mqtt", HTTP_GET, [](AsyncWebServerRequest *request){
+        StaticJsonDocument<512> doc;
+        doc["connected"] = mqttClient.isConnected();
+        doc["broker"] = config.settings.mqtt_broker;
+        doc["user"] = config.settings.mqtt_user;
+        doc["pass_set"] = config.settings.mqtt_pass.length() > 0;
+        doc["room"] = room_name;
+        
+        String payload;
+        serializeJson(doc, payload);
+        request->send(200, "application/json", payload);
+    });
     server.on("/style.css", [](AsyncWebServerRequest *request){ request->send(LittleFS, "/style.css", "text/css"); });
 
     server.on("/events", [](AsyncWebServerRequest *request) {
@@ -404,13 +418,19 @@ void loop() {
     }
     ArduinoOTA.handle();
     
+    mqttClient.loop(config);
+    
     if (otaSafeMode) return;
 
     if (millis() - lastHeartbeat >= heartbeatInterval) {
         lastHeartbeat = millis();
         Serial.println("DEBUG: Performing periodic reconciliation heartbeat...");
-        motionHA.forceSend(roomState.motion.getValue() ? "on" : "off");
-        doorHA.forceSend(roomState.doorOpen.getValue() ? "on" : "off");
+        #ifdef USE_MOTION_SENSOR
+        mqttClient.publish("motion", roomState.motion.getValue() ? "on" : "off");
+        #endif
+        #ifdef USE_DOOR_SENSOR
+        mqttClient.publish("door", roomState.doorOpen.getValue() ? "on" : "off");
+        #endif
     }
 
     unsigned long loopStart = millis();
@@ -446,12 +466,13 @@ void loop() {
                                roomState.isDaylight ? "YES" : "NO");
             }
             UpdateSupabase();
-
+ 
             float tempF = (roomState.temperature.getValue() * 9.0 / 5.0) + 32.0;
-            tempHA.update(String(tempF, 1).c_str(), false, "value");
+            mqttClient.publish("temperature", String(tempF, 1).c_str());
             pushUpdate();
             
             alertManager.updateSyncState();
+
             roomState.lastPostMillis = millis();
             roomState.clearAllChanges();
         } else {
@@ -467,14 +488,19 @@ void loop() {
 
     // 2. UI-Only Updates: Push to SSE if sensors have changes.
     if (roomState.anyChanges() && (millis() - lastUIUpdateMillis >= 500)) {
+        #ifdef USE_MOTION_SENSOR
         if (roomState.motion.hasChanges()) {
-            motionHA.update(roomState.motion.getValue() ? "on" : "off");
+            mqttClient.publish("motion", roomState.motion.getValue() ? "on" : "off");
         }
+        #endif
+        #ifdef USE_DOOR_SENSOR
         if (roomState.doorOpen.hasChanges()) {
-            doorHA.update(roomState.doorOpen.getValue() ? "on" : "off");
+            mqttClient.publish("door", roomState.doorOpen.getValue() ? "on" : "off");
         }
-
+        #endif
+ 
         Serial.print("UI PUSH TRIGGERED. Dirty: ");
+
         if (roomState.temperature.hasChanges()) Serial.print("T ");
         if (roomState.humidity.hasChanges()) Serial.print("H ");
         if (roomState.motion.hasChanges()) Serial.print("M ");

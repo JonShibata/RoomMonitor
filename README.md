@@ -22,12 +22,20 @@ const char *password = "WIFI_PASSWORD";
 ```
 
 ## OTA Updates (PlatformIO)
-
+ 
 This project supports Over-The-Air (OTA) updates. To update the firmware wirelessly:
-
+ 
 1. Ensure the device is powered on and connected to the same network as your PC.
 2. In PlatformIO, run the target `UploadOTA` instead of the standard `Upload`.
 3. To update the web interface files, run the `Upload Filesystem Image` task to flash the `/data` folder to LittleFS.
-
-
+ 
+## Configuration and Security
+ 
+The device uses LittleFS to store runtime settings in `config.json`. 
+ 
+**Important:** Settings saved via the web `/save` endpoint (such as MQTT credentials) are stored in the filesystem and will **persist across firmware reflashes**. 
+ 
+To update MQTT credentials securely:
+- Use the web interface to send a POST request to `/save` with `mqtt_user` and `mqtt_pass`.
+- This prevents sensitive credentials from being hardcoded in the source code.
 

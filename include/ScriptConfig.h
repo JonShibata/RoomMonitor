@@ -1,9 +1,10 @@
-// ScriptConfig.h
+#ifndef SCRIPT_CONFIG_H
+#define SCRIPT_CONFIG_H
  
 // configurations only used until first connection with google sheet
 // New calibrations are pulled down each time an update is made to the sheet
 const char* ha_webhook_base = "http://192.168.6.53:8123/api/webhook/";
-
+ 
 #if defined(basement)
   const char* room_name = "basement";
   const char* ha_temp_endpoint = "basement-temperature";
@@ -23,5 +24,8 @@ const char* ha_webhook_base = "http://192.168.6.53:8123/api/webhook/";
 #else
   #error "Please define either basement or bonusroom as a build flag (e.g., -D bonusroom)"
 #endif
+ 
+#endif
+
 
 

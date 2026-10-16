@@ -26,6 +26,9 @@ public:
         float latitude = 40.7128;
         float longitude = -74.0060;
         int timezone = -5;
+        const char* mqtt_broker = "192.168.6.53";
+        String mqtt_user = "";
+        String mqtt_pass = "";
     } settings;
 
 
@@ -47,9 +50,12 @@ public:
         if (doc.containsKey("latitude")) settings.latitude = doc["latitude"];
         if (doc.containsKey("longitude")) settings.longitude = doc["longitude"];
         if (doc.containsKey("timezone")) settings.timezone = doc["timezone"];
-
+        if (doc.containsKey("mqtt_user")) settings.mqtt_user = doc["mqtt_user"].as<String>();
+        if (doc.containsKey("mqtt_pass")) settings.mqtt_pass = doc["mqtt_pass"].as<String>();
+ 
         return true;
     }
+
 
     void updateSetting(const String& key, const String& value) {
         if (key == "bBeepEnabled") {
@@ -80,6 +86,10 @@ public:
             settings.longitude = value.toFloat();
         } else if (key == "timezone") {
             settings.timezone = value.toInt();
+        } else if (key == "mqtt_user") {
+            settings.mqtt_user = value;
+        } else if (key == "mqtt_pass") {
+            settings.mqtt_pass = value;
         }
     }
 };
